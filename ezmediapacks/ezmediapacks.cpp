@@ -1,53 +1,34 @@
-#include <iostream>
-#include <vector>
-#include <string>
+#include <gtk/gtk.h>
 
-int main() {
-    // Define media packs
-    std::vector<std::string> mediaPacks = {
-        "64dd-media.7z",
-        "amiga600-media.7z",
-        "amiga1200-media.7z",
-        // ... add more media packs as needed
-    };
+// Callback function to handle button clicks
+static void button_clicked(GtkWidget *widget, gpointer data) {
+    g_print("Button clicked!\n");
+}
 
-    // Display media packs to the user
-    std::cout << "Choose a media pack to download:" << std::endl;
-    for (int i = 0; i < mediaPacks.size(); ++i) {
-        std::cout << i + 1 << ". " << mediaPacks[i] << std::endl;
-    }
+int main(int argc, char *argv[]) {
+    // Initialize GTK
+    gtk_init(&argc, &argv);
 
-    // Prompt user for selection
-    std::cout << "Enter the number of the media pack you want to download: ";
-    int choice;
-    std::cin >> choice;
+    // Create the main window
+    GtkWidget *window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
+    gtk_window_set_title(GTK_WINDOW(window), "GTK Hello World");
+    gtk_container_set_border_width(GTK_CONTAINER(window), 10);
+    gtk_widget_set_size_request(window, 200, 100);
 
-    // Validate user's choice
-    if (choice < 1 || choice > mediaPacks.size()) {
-        std::cout << "Invalid choice. Please enter a valid number." << std::endl;
-        return 1;
-    }
+    // Create a button
+    GtkWidget *button = gtk_button_new_with_label("Click me!");
 
-    // Get selected media pack name
-    std::string selectedMediaPack = mediaPacks[choice - 1];
+    // Connect the button's "clicked" signal to the callback function
+    g_signal_connect(button, "clicked", G_CALLBACK(button_clicked), NULL);
 
-    // Display download message
-    std::cout << "Downloading " << selectedMediaPack << "..." << std::endl;
+    // Add the button to the main window
+    gtk_container_add(GTK_CONTAINER(window), button);
 
-    // TODO: Implement the download logic here
+    // Show all widgets
+    gtk_widget_show_all(window);
 
-    // Display download completion message
-    std::cout << "Download completed." << std::endl;
-
-    // TODO: Implement additional logic for checksum verification, extraction, and copying to the network share
-
-    // Display final message
-    std::cout << "Enjoy your Readycade!" << std::endl;
-    std::cout << "Press any key to exit." << std::endl;
-
-    // Wait for user input before exiting
-    std::cin.ignore();
-    std::cin.get();
+    // Start the GTK main loop
+    gtk_main();
 
     return 0;
 }
