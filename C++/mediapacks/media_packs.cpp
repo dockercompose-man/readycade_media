@@ -1,62 +1,53 @@
-#include <QApplication>
-#include <QWidget>
-#include <QVBoxLayout>
-#include <QComboBox>
-#include <QPushButton>
-#include <QLabel>
+#include <iostream>
+#include <vector>
+#include <string>
 
-class MediaPackSelector : public QWidget {
-    Q_OBJECT
+int main() {
+    // Define media packs
+    std::vector<std::string> mediaPacks = {
+        "64dd-media.7z",
+        "amiga600-media.7z",
+        "amiga1200-media.7z",
+        // ... add more media packs as needed
+    };
 
-public:
-    MediaPackSelector(QWidget *parent = nullptr) : QWidget(parent) {
-        // Set up layout
-        QVBoxLayout *layout = new QVBoxLayout(this);
-
-        // Create a label
-        QLabel *label = new QLabel("Select Media Pack:", this);
-        layout->addWidget(label);
-
-        // Create a combo box for media pack selection
-        mediaPackComboBox = new QComboBox(this);
-        mediaPackComboBox->addItem("Media Pack 1");
-        mediaPackComboBox->addItem("Media Pack 2");
-        mediaPackComboBox->addItem("Media Pack 3");
-        layout->addWidget(mediaPackComboBox);
-
-        // Create a button to perform an action (e.g., open media pack)
-        QPushButton *openButton = new QPushButton("Open Media Pack", this);
-        connect(openButton, &QPushButton::clicked, this, &MediaPackSelector::openMediaPack);
-        layout->addWidget(openButton);
-
-        // Set up the main window
-        setLayout(layout);
-        setWindowTitle("Media Pack Selector");
-        setFixedSize(300, 150);
+    // Display media packs to the user
+    std::cout << "Choose a media pack to download:" << std::endl;
+    for (int i = 0; i < mediaPacks.size(); ++i) {
+        std::cout << i + 1 << ". " << mediaPacks[i] << std::endl;
     }
 
-private slots:
-    void openMediaPack() {
-        // Get the selected media pack from the combo box
-        QString selectedMediaPack = mediaPackComboBox->currentText();
+    // Prompt user for selection
+    std::cout << "Enter the number of the media pack you want to download: ";
+    int choice;
+    std::cin >> choice;
 
-        // Perform an action, e.g., open the selected media pack
-        // You can replace this with your specific functionality
-        // For simplicity, we just print the selected media pack
-        qDebug() << "Opening Media Pack: " << selectedMediaPack;
+    // Validate user's choice
+    if (choice < 1 || choice > mediaPacks.size()) {
+        std::cout << "Invalid choice. Please enter a valid number." << std::endl;
+        return 1;
     }
 
-private:
-    QComboBox *mediaPackComboBox;
-};
+    // Get selected media pack name
+    std::string selectedMediaPack = mediaPacks[choice - 1];
 
-int main(int argc, char *argv[]) {
-    QApplication app(argc, argv);
+    // Display download message
+    std::cout << "Downloading " << selectedMediaPack << "..." << std::endl;
 
-    // Create and show the media pack selector window
-    MediaPackSelector mediaPackSelector;
-    mediaPackSelector.show();
+    // TODO: Implement the download logic here
 
-    // Run the application
-    return app.exec();
+    // Display download completion message
+    std::cout << "Download completed." << std::endl;
+
+    // TODO: Implement additional logic for checksum verification, extraction, and copying to the network share
+
+    // Display final message
+    std::cout << "Enjoy your Readycade!" << std::endl;
+    std::cout << "Press any key to exit." << std::endl;
+
+    // Wait for user input before exiting
+    std::cin.ignore();
+    std::cin.get();
+
+    return 0;
 }
