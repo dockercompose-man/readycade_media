@@ -1,11 +1,14 @@
 @echo off
 setlocal enabledelayedexpansion
 
-::--------------------------------------------------------------------
+:: Author Michael Cabral 2024
+:: Title: Readycade Media Packs Installer
+:: NEED TO CHOOSE A LICENSE
+:: Description: Installs Readycade Media Files to Recalbox
+
 ::VARS::
 set "authURL=https://forum.readycade.com/auth.php"
 
-::--------------------------------------------------------------------
 ::CHECK NETWORK SHARE::
 
 echo Checking if the network share is available...
@@ -18,9 +21,6 @@ if %errorlevel% neq 0 (
 )
 echo.
 
-::--------------------------------------------------------------------
-
-::--------------------------------------------------------------------
 ::PROMPT FOR USERNAME AND PASSWORD (no echo for password)::
 
 set /p "dbUsername=Enter your username: "
@@ -28,18 +28,12 @@ set "dbPassword="
 powershell -Command "$dbPassword = Read-Host 'Enter your password' -AsSecureString; [System.Runtime.InteropServices.Marshal]::PtrToStringAuto([System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($dbPassword)) | Out-File -FilePath credentials.txt -Encoding ASCII"
 set /p dbPassword=<credentials.txt
 del credentials.txt
-::--------------------------------------------------------------------
 
-
-::--------------------------------------------------------------------
-::DELETE THIS BEFORE PRODUCTION!!!!!!!!!::
-::--------------------------------------------------------------------
+:: TODO: DELETE THIS BEFORE PRODUCTION!!!!!
 :: To Debug username/password
 :: echo dbUsername=!dbUsername!
 :: echo dbPassword=!dbPassword!
-::--------------------------------------------------------------------
 
-::--------------------------------------------------------------------
 ::AUTHENTICATION::
 rem Perform authentication by sending a POST request to auth.php using the captured credentials
 curl -X POST -d "dbUsername=!dbUsername!&dbPassword=!dbPassword!" -H "Content-Type: application/x-www-form-urlencoded" "!authURL!" > auth_result.txt
@@ -60,9 +54,7 @@ if "!authResult!" neq "Authenticated" (
 
 echo.
 echo.
-::--------------------------------------------------------------------
 
-::--------------------------------------------------------------------
 ::10 SECOND COUNTDOWN MESSAGE::
 
 rem Wait for 10 seconds and display a countdown message
@@ -82,9 +74,7 @@ for /l %%A in (10,-1,1) do (
 )
 echo.
 echo.
-::--------------------------------------------------------------------
 
-::--------------------------------------------------------------------
 ::INSTALL 7-ZIP::
 
 :: Define the installation directory for 7-Zip
@@ -129,9 +119,6 @@ if exist "!installDir!\7z.exe" (
     echo 7-Zip is now installed.
 )
 
-::--------------------------------------------------------------------
-
-::--------------------------------------------------------------------
 ::MEDIA PACK VARS::
 
 :: Define the base URL for downloading media packs
@@ -225,9 +212,6 @@ set "media_packs[78]=x68000-media.7z"
 set "media_packs[79]=zx81-media.7z"
 set "media_packs[80]=zxspectrum-media.7z"
 
-::--------------------------------------------------------------------
-
-::--------------------------------------------------------------------
 ::DOWNLOAD "MEDIA PACK" + MAX DOWNLOAD ATTEMPTS & RESUME::
 
 :: Display the list of available media packs
@@ -256,18 +240,7 @@ set "console_name=!console_name:-media=!"
 :: Create a folder with the console name inside the target directory
 mkdir "%target_directory%\!console_name!"
 
-:: Download the selected media pack
-:: echo Downloading !selected_media_pack!...
-:: curl -o "%target_directory%\!selected_media_pack!" "!download_url!"
-
-
-:: Download the selected media pack with curl
-::echo Downloading !selected_media_pack!...
-::curl -k -C - -o "%target_directory%\!selected_media_pack!" "!download_url!"
-
-
-::--------------------------------------------------------------------
-::DOWNLOAD LOOP
+::Download Media Packs Loop
 
 :: Set the number of maximum download attempts
 set max_attempts=4
@@ -309,9 +282,6 @@ goto :end
 
 :end
 
-::--------------------------------------------------------------------
-
-::--------------------------------------------------------------------
 ::CHECK MD5 CHECKSUM::
 
 echo Downloaded file: !selected_media_pack!
@@ -397,7 +367,6 @@ if "!selected_media_pack!"=="x68000-media.7z" set "expected_md5=6ebf2a0fdc1be37f
 if "!selected_media_pack!"=="zx81-media.7z" set "expected_md5=c4f23cc445c898de892ed2782d15677c"
 if "!selected_media_pack!"=="zxspectrum-media.7z" set "expected_md5=e89800571eb212fa297260c691d4651d"
 
-
 :: Retrieve the expected MD5 checksum from the media_packs array
 set "expected_md5=!media_packs[%selected_media_pack%]!"
 
@@ -408,11 +377,6 @@ if "!expected_md5!" neq "!actual_md5!" (
     echo Checksum verification successful for !selected_media_pack!.
 )
 
-:: Continue with the script if the checksum matches
-::--------------------------------------------------------------------
-
-
-::--------------------------------------------------------------------
 ::EXTRACTION AND XCOPY TO NETWORK SHARE::
 
 echo Extracting archive: "%target_directory%\!selected_media_pack!"
@@ -431,8 +395,6 @@ echo !selected_media_pack! media pack copied to %target_directory_network%
 
 echo Download and copy completed.
 
-
-::--------------------------------------------------------------------
 :: CLEAN UP TEMP FILES::
 
 echo Deleting temporary files and folders...
@@ -441,18 +403,14 @@ del /q "%target_directory%\*.*"
 ) else (
 echo Extraction failed. Temporary files are not deleted.
 )
-::--------------------------------------------------------------------
 
-::--------------------------------------------------------------------
 ::END MESSAGE::
 echo.
 echo Enjoy your Readycade!
 echo Press any key to exit.
 
-rem Author: Michael Cabral
-::--------------------------------------------------------------------
+rem Author: Michael Cabral 2024
 
-::--------------------------------------------------------------------
 ::END MESSAGE WITH COUNTDOWN::
 
 rem Wait for 10 seconds and display a countdown message
@@ -469,6 +427,5 @@ for /l %%A in (10,-1,1) do (
 )
 
 exit /b
-
 
 endlocal
