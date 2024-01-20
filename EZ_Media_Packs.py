@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import ttk, messagebox, simpledialog
 from PIL import Image, ImageTk
 import os
 import requests
@@ -27,6 +27,37 @@ except subprocess.CalledProcessError:
     sys.exit()
 
 print()
+
+# VARS
+auth_url = "https://forum.readycade.com/auth.php"
+
+def get_credentials():
+    db_username = simpledialog.askstring("Authentication", "Enter your username:")
+    db_password = simpledialog.askstring("Authentication", "Enter your password:", show='*')
+
+    if db_username and db_password:
+        print(f"Username: {db_username}, Password: {db_password}")
+    else:
+        print("Authentication canceled.")
+
+# Get username and password from user input
+db_username = simpledialog.askstring("Authentication", "Enter your username:")
+db_password = simpledialog.askstring("Authentication", "Enter your password:", show='*')
+
+# AUTHENTICATION
+# Perform authentication by sending a POST request to auth.php using the captured credentials
+data = {"dbUsername": db_username, "dbPassword": db_password}
+response = requests.post(auth_url, data=data)
+
+# Check the authentication result
+auth_result = response.text.strip()
+
+if auth_result != "Authenticated":
+    print("Authentication failed. Exiting script...")
+    sys.exit()
+
+print("Authentication successful. Proceeding with installation...")
+
 
 def download_media_pack(base_url, target_directory, selected_media_pack, md5_checksums, status_var, progress_var):
     console_name = os.path.splitext(selected_media_pack)[0].replace('-media', '')
@@ -112,6 +143,13 @@ def download_thread():
 root = tk.Tk()
 root.title("Readycade")
 
+# Remove the TK icon
+root.iconbitmap(default="icon.ico")
+
+# Set the window icon
+icon_path = os.path.join(os.path.dirname(__file__), 'icon.ico')  # Replace 'icon.ico' with your actual icon file
+root.iconbitmap(icon_path)
+
 # Logo
 logo_path = os.path.join(os.path.dirname(__file__), 'logo.png')
 logo = Image.open(logo_path)
@@ -152,5 +190,6 @@ progress_bar.grid(column=1, row=4)
 status_var = tk.StringVar()
 status_label = tk.Label(root, textvariable=status_var, font="open-sans")
 status_label.grid(columnspan=3, column=0, row=5)
+
 
 root.mainloop()
