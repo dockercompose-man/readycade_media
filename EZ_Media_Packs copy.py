@@ -6,10 +6,10 @@ import requests
 import hashlib
 import subprocess
 import shutil
-import time
 import threading
+from tqdm import tqdm  # Import tqdm for progress bar
 
-def download_media_pack(base_url, target_directory, selected_media_pack, md5_checksums, status_var):
+def download_media_pack(base_url, target_directory, selected_media_pack, md5_checksums, status_var, progress_var):
     console_name = os.path.splitext(selected_media_pack)[0].replace('-media', '')
     console_folder = os.path.join(target_directory, console_name)
     os.makedirs(console_folder, exist_ok=True)
@@ -17,33 +17,22 @@ def download_media_pack(base_url, target_directory, selected_media_pack, md5_che
     download_url = base_url + selected_media_pack
     file_path = os.path.join(target_directory, selected_media_pack)
 
-    max_attempts = 4
-    attempt = 0
+    response = requests.get(download_url, stream=True)
+    file_size = int(response.headers.get('content-length', 0))
+    block_size = 1024  # 1 KB
+    current_size = 0
 
-    while attempt < max_attempts:
-        attempt += 1
-        status_var.set(f"Attempt {attempt} to download {selected_media_pack}...")
+    with open(file_path, 'wb') as file:
+        for data in tqdm(response.iter_content(block_size), total=file_size // block_size, unit='KB', unit_scale=True):
+            file.write(data)
+            current_size += len(data)
+            progress = (current_size / file_size) * 100
+            progress_var.set(progress)
+            status_var.set(f"Installation in Progress... {progress:.2f}%")
+            root.update_idletasks()  # Force GUI update
 
-        response = requests.get(download_url, stream=True)
-        with open(file_path, 'wb') as file:
-            file.write(response.content)
-
-        if response.status_code == 200:
-            status_var.set(f"Download of {selected_media_pack} was successful.")
-            break
-        else:
-            status_var.set(f"Download of {selected_media_pack} failed on attempt {attempt}.")
-            if attempt < max_attempts:
-                status_var.set("Retrying in 5 seconds...")
-                time.sleep(5)
-            else:
-                status_var.set("Maximum download attempts reached. Download failed.")
-                return None
-
-    # Calculate the MD5 of the downloaded file
     actual_md5 = calculate_md5(file_path)
 
-    # Check if MD5 matches the expected value
     expected_md5 = md5_checksums.get(selected_media_pack, "")
     if expected_md5 == actual_md5:
         status_var.set("Checksum verification successful.")
@@ -51,32 +40,30 @@ def download_media_pack(base_url, target_directory, selected_media_pack, md5_che
         status_var.set("Checksum verification failed. Exiting...")
         return None
 
-    # Extraction process
     status_var.set("Extraction in progress...")
 
-    # Extract the media pack using 7z
     if subprocess.run([r'C:\Program Files\7-Zip\7z.exe', 'x', f'-o{console_folder}', file_path]).returncode == 0:
-        # Determine the target directory on the network share
         target_directory_network = r"\\RECALBOX\share\roms\{}".format(console_name)
-
-        # Copy the extracted folder and its contents to the network share
         shutil.copytree(os.path.join(target_directory, console_folder), target_directory_network, dirs_exist_ok=True)
-
         status_var.set(f"{selected_media_pack} media pack copied to {target_directory_network}")
         status_var.set("Download and copy completed.")
-
-        # CLEAN UP TEMP FILES
         status_var.set("Deleting temporary files and folders...")
-        shutil.rmtree(os.path.join(target_directory, console_folder), ignore_errors=True)
-        os.remove(file_path)
-
-        # Clear status after a second or two
-        time.sleep(2)
-        status_var.set("")
+        root.after(2000, cleanup_temp_files, target_directory, console_folder, file_path)
     else:
         status_var.set("Extraction failed. Temporary files are not deleted.")
 
     return console_folder
+
+def cleanup_temp_files(target_directory, console_folder, file_path):
+    shutil.rmtree(os.path.join(target_directory, console_folder), ignore_errors=True)
+    os.remove(file_path)
+    status_var.set("Temporary files deleted.")
+    root.after(2000, clear_status)
+
+def clear_status():
+    status_var.set("")  # Clear the status after 2000 milliseconds (2 seconds)
+    progress_var.set(0)  # Reset the progress bar
+
 
 def calculate_md5(file_path):
     md5 = hashlib.md5()
@@ -87,7 +74,6 @@ def calculate_md5(file_path):
 
 def open_file():
     browse_text.set("Downloading...")
-    status_var.set("")  # Clear previous status
     download_thread_instance = threading.Thread(target=download_thread)
     download_thread_instance.start()
 
@@ -97,9 +83,10 @@ def download_thread():
     if selected_media_pack:
         base_url = "https://forum.readycade.com/readycade_media/"
         target_directory = os.path.expandvars(r"%APPDATA%\readycade\mediapacks")
-        console_folder = download_media_pack(base_url, target_directory, selected_media_pack, md5_checksums, status_var)
+        console_folder = download_media_pack(base_url, target_directory, selected_media_pack, md5_checksums, status_var, progress_var)
         if console_folder:
             browse_text.set("Download")
+            messagebox.showinfo("Media Pack Installed", "Media Pack Installed! Please Select Another or Exit the application.")
         else:
             browse_text.set("Download failed.")
 
@@ -119,13 +106,7 @@ Instructions = tk.Label(root, text="Select a media pack to download:", font="ope
 Instructions.grid(columnspan=3, column=0, row=1)
 
 # Media pack selection dropdown
-media_packs = [
-    "64dd-media.7z",
-    "amiga600-media.7z",
-    "amiga1200-media.7z",
-    "amstradcpc-media.7z"
-]
-
+media_packs = ["64dd-media.7z", "amiga600-media.7z", "amiga1200-media.7z", "amstradcpc-media.7z"]
 md5_checksums = {
     "64dd-media.7z": "a2e36d62227447a9217b4a2b2c6bdef2",
     "amiga600-media.7z": "864c64b15e80ee992bf011894b5e5980",
@@ -143,9 +124,14 @@ browse_btn = tk.Button(root, textvariable=browse_text, command=open_file, font="
 browse_text.set("Download")
 browse_btn.grid(column=1, row=3)
 
-# Status display
+# Progress bar
+progress_var = tk.DoubleVar()
+progress_bar = ttk.Progressbar(root, variable=progress_var, length=200, mode='determinate')
+progress_bar.grid(column=1, row=4)
+
+# Status Label
 status_var = tk.StringVar()
 status_label = tk.Label(root, textvariable=status_var, font="open-sans")
-status_label.grid(columnspan=3, column=0, row=4)
+status_label.grid(columnspan=3, column=0, row=5)
 
 root.mainloop()
