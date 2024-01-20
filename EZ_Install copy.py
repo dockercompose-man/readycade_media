@@ -3,13 +3,14 @@ from tkinter import ttk, messagebox, simpledialog
 from PIL import Image, ImageTk
 import os
 import requests
+from requests.exceptions import ChunkedEncodingError
 import hashlib
 import subprocess
 import shutil
 import sys
 import threading
 import time
-from tqdm import tqdm  # Import tqdm for the progress bar
+from tqdm import tqdm
 
 # VARS
 base_url = "https://forum.readycade.com/readycade_configs/"
@@ -20,9 +21,50 @@ download_canceled = False
 
 global_password = "o2M8K2zjs67ysJR8jWy7"
 
+def fetch_md5_from_server(md5_file_url):
+    try:
+        md5_response = requests.get(md5_file_url)
+        md5_response.raise_for_status()
+        return md5_response.text.strip().split()[0]  # Extract only the hash
+    except requests.exceptions.RequestException as e:
+        print(f"Error fetching .md5 file from {md5_file_url}: {e}")
+        return None
+
 def download_config_pack(base_url, target_directory, selected_config_pack, md5_checksums, status_var, progress_var):
     try:
         config_file_name = config_pack_names[selected_config_pack]
+        md5_file_name = config_file_name + '.md5'
+
+        print(f"Selected config pack: {selected_config_pack}")
+        print(f"Config file name: {config_file_name}")
+
+        md5_file_url = base_url + md5_file_name
+        actual_md5 = fetch_md5_from_server(md5_file_url)
+
+        if actual_md5 is None:
+            status_var.set(f"Error fetching .md5 file for {config_file_name}. Exiting...")
+            root.after(2000, clear_status)
+            return None
+
+        print(f"Actual MD5 from .md5 file: {actual_md5}")
+
+        expected_md5 = md5_checksums.get(config_file_name, "")
+        print(f"Expected MD5: {expected_md5}")
+
+        # Check if the MD5 values match
+        if expected_md5 == actual_md5:
+            print("MD5 values match. Proceeding with the download.")
+            status_var.set(f"MD5 values match for {config_file_name}. Download starting...")
+        else:
+            print("MD5 values do not match. Exiting...")
+            status_var.set(f"MD5 values do not match for {config_file_name}. Exiting...")
+
+        # Schedule clearing the status and resetting the download button after a delay
+            root.after(2000, clear_status)
+            root.after(2000, reset_download_button_delayed)
+            return None
+
+ 
     except KeyError:
         print(f"Error: Key not found for '{selected_config_pack}' in config_pack_names. Available keys: {list(config_pack_names.keys())}")
         return None
@@ -30,7 +72,42 @@ def download_config_pack(base_url, target_directory, selected_config_pack, md5_c
     print(f"Selected config pack: {selected_config_pack}")
     print(f"Config file name: {config_file_name}")
 
-    md5_file_url = base_url + config_file_name + '.md5'
+
+    download_url = base_url + config_file_name  # Move the definition here
+    block_size = 1024  # Define block_size here
+
+    response = requests.get(download_url, stream=True, timeout=10)  # Set a timeout (e.g., 10 seconds)
+
+    try:
+        response.raise_for_status()  # Check for HTTP errors
+
+        # Get file size from response headers
+        file_size = int(response.headers.get('content-length', 0))
+
+        # Rest of the code for download
+        with open(os.path.join(target_directory, config_file_name), 'wb') as file:
+            for data in tqdm(response.iter_content(block_size), total=max(1, file_size // block_size), unit='KB', unit_scale=True):
+                if download_canceled:
+                    # User canceled the download, break out of the loop
+                    status_var.set(f"Download of {config_file_name} config pack canceled.")
+                    root.after(2000, cleanup_temp_files, target_directory, os.path.join(target_directory, config_file_name))
+                    return None
+                file.write(data)
+                progress_var.set((file.tell() / max(1, file_size)) * 100)  # Calculate progress
+                status_var.set(f"Download in Progress for {config_file_name} config pack... {progress_var.get():.2f}%")
+                root.update_idletasks()  # Force GUI update
+
+    except ChunkedEncodingError as e:
+        status_var.set(f"ChunkedEncodingError: {e}")
+        root.after(2000, cleanup_temp_files, target_directory, os.path.join(target_directory, config_file_name))
+        return None
+    except requests.exceptions.RequestException as e:
+        status_var.set(f"RequestException: {e}")
+        root.after(2000, cleanup_temp_files, target_directory, os.path.join(target_directory, config_file_name))
+        return None
+
+    md5_file_name = config_file_name + '.md5'
+    md5_file_url = base_url + md5_file_name
 
     # Check if the selected config pack requires a password
     if selected_config_pack in md5_checksums:
@@ -45,60 +122,35 @@ def download_config_pack(base_url, target_directory, selected_config_pack, md5_c
             root.after(2000, clear_status)
             return None
 
-    # Fetch the content of the .md5 file from the server
-    md5_response = requests.get(md5_file_url)
-    if md5_response.status_code == 200:
-        actual_md5 = md5_response.text.strip().split()[0]  # Extract only the hash
-        print(f"Actual MD5 from .md5 file: {actual_md5}")
+        # Fetch the content of the .md5 file from the server
+        md5_response = requests.get(md5_file_url)
+        if md5_response.status_code == 200:
+            actual_md5_line = md5_response.text.strip().split('\n')[0]  # Get the first line
+            actual_md5 = actual_md5_line.split()[0]  # Extract only the hash
+            print(f"Actual MD5 from .md5 file: {actual_md5}")
 
-        expected_md5 = md5_checksums.get(config_file_name, "")
-        print(f"Expected MD5: {expected_md5}")
+            expected_md5 = md5_checksums.get(md5_file_name, "")
+            print(f"Expected MD5: {expected_md5}")
 
-        # Check if the MD5 values match
-        if expected_md5 == actual_md5:
-            print("MD5 values match. Proceeding with the download.")
-            status_var.set(f"MD5 values match for {config_file_name}. Download starting...")
+            # Check if the MD5 values match
+            if expected_md5 == actual_md5:
+                print("MD5 values match. Proceeding with the download.")
+                status_var.set(f"MD5 values match for {md5_file_name}. Download starting...")
+            else:
+                print("MD5 values do not match. Exiting...")
+                status_var.set(f"MD5 values do not match for {md5_file_name}. Exiting...")
+                root.after(2000, clear_status)
+                return None
         else:
-            print("MD5 values do not match. Exiting...")
-            status_var.set(f"MD5 values do not match for {config_file_name}. Exiting...")
+            print(f"Error: Failed to fetch .md5 file from {md5_file_url}. Exiting...")
+            status_var.set(f"Error: Failed to fetch .md5 file from {md5_file_url}. Exiting...")
             root.after(2000, clear_status)
             return None
-    else:
-        print(f"Error: Failed to fetch .md5 file from {md5_file_url}. Exiting...")
-        status_var.set(f"Error: Failed to fetch .md5 file from {md5_file_url}. Exiting...")
-        root.after(2000, clear_status)
-        return None
-
-    # Define download_url before using it
-    download_url = base_url + config_file_name
-
-    response = requests.get(download_url, stream=True)
-    file_size = int(response.headers.get('content-length', 0))
-    block_size = 1024  # 1 KB
-    current_size = 0
-
-    file_path = os.path.join(target_directory, config_file_name)
-    partially_downloaded_file = os.path.join(target_directory, f"{config_file_name}-configs.7z")
-
-    with open(file_path, 'wb') as file:
-        for data in tqdm(response.iter_content(block_size), total=max(1, file_size // block_size), unit='KB', unit_scale=True):
-            if download_canceled:
-                # User canceled the download, break out of the loop
-                status_var.set(f"Download of {config_file_name} config pack canceled.")
-                root.after(2000, cleanup_temp_files, target_directory, file_path, partially_downloaded_file)
-                return None
-
-            file.write(data)
-            current_size += len(data)
-            progress = (current_size / max(1, file_size)) * 100  # Ensure file_size is at least 1 to avoid division by zero
-            progress_var.set(progress)
-            status_var.set(f"Download in Progress for {config_file_name} config pack... {progress:.2f}%")
-            root.update_idletasks()  # Force GUI update
 
     status_var.set("Extraction in progress...")
 
     # Modify the extraction command based on the tool you are using
-    extraction_command = [r'C:\Program Files\7-Zip\7z.exe', 'x', '-aoa', '-o{}'.format(target_directory), '-p{}'.format(global_password), file_path]
+    extraction_command = [r'C:\Program Files\7-Zip\7z.exe', 'x', '-aoa', '-o{}'.format(target_directory), '-p{}'.format(global_password), os.path.join(target_directory, config_file_name)]
 
     # Check if the extraction is successful
     if subprocess.run(extraction_command).returncode == 0:
@@ -107,14 +159,14 @@ def download_config_pack(base_url, target_directory, selected_config_pack, md5_c
         status_var.set(f"{selected_config_pack} config pack copied to {target_directory_network}")
         status_var.set("Download and copy completed.")
         status_var.set("Deleting temporary files and folders...")
-        root.after(2000, cleanup_temp_files, target_directory, file_path, partially_downloaded_file)
+        root.after(2000, cleanup_temp_files, target_directory, os.path.join(target_directory, config_file_name))
     else:
         status_var.set("Extraction failed. Temporary files are not deleted.")
-        root.after(2000, cleanup_temp_files, target_directory, file_path, partially_downloaded_file)
+        root.after(2000, cleanup_temp_files, target_directory, os.path.join(target_directory, config_file_name))
 
     return target_directory
 
-def cleanup_temp_files(target_directory, file_path, partially_downloaded_file):
+def cleanup_temp_files(target_directory, file_path):
     # Wait for a short time to ensure the file is not in use
     time.sleep(1)
 
@@ -130,31 +182,12 @@ def cleanup_temp_files(target_directory, file_path, partially_downloaded_file):
             except Exception as e:
                 print(f"Error deleting file: {e}")
 
-    # Check if the partially downloaded file exists and is not in use
-    if os.path.exists(partially_downloaded_file):
-        try:
-            os.remove(partially_downloaded_file)
-        except PermissionError:
-            # File is still in use, wait and try again
-            time.sleep(1)
-            try:
-                os.remove(partially_downloaded_file)
-            except Exception as e:
-                print(f"Error deleting file: {e}")
-
-    status_var.set("Temporary files deleted.")
+    status_var.set("Temporary file deleted.")
     root.after(2000, clear_status)
 
 def clear_status():
     status_var.set("")  # Clear the status after 2000 milliseconds (2 seconds)
     progress_var.set(0)  # Reset the progress bar
-
-def calculate_md5(file_path):
-    md5 = hashlib.md5()
-    with open(file_path, 'rb') as f:
-        for chunk in iter(lambda: f.read(4096), b''):
-            md5.update(chunk)
-    return md5.hexdigest()
 
 def open_file():
     global download_canceled
@@ -198,27 +231,27 @@ def cancel_download():
     selected_config_pack = config_pack_combobox.get()
     target_directory = os.path.expandvars(r"%APPDATA%\readycade\configpacks")
     file_path = os.path.join(target_directory, config_pack_names[selected_config_pack])
-    partially_downloaded_file = os.path.join(target_directory, f"{config_pack_names[selected_config_pack]}.7z")
 
-    # Attempt to delete the downloaded file, the partially downloaded file
+    # Attempt to delete the downloaded file
     try:
         if os.path.exists(file_path):
             os.remove(file_path)
 
-        if os.path.exists(partially_downloaded_file):
-            os.remove(partially_downloaded_file)
-
-        status_var.set("Download canceled. Temporary files deleted.")
+        status_var.set("Download canceled. Temporary file deleted.")
         root.after(2000, clear_status)
+        root.after(2000, reset_download_button_delayed)  # Display "Download failed" for 2 seconds
     except Exception as e:
         status_var.set(f"Error: {str(e)}")
         root.after(2000, clear_status)
+        root.after(2000, reset_download_button_delayed)  # Display "Download failed" for 2 seconds
 
-    # Re-enable the download button
+def reset_download_button_delayed():
     browse_btn['state'] = 'normal'
-
-    # Disable the cancel button
+    browse_text.set("Download")
     cancel_btn['state'] = 'disabled'
+
+
+
 
 root = tk.Tk()
 root.title("Readycade")
