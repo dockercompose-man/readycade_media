@@ -65,6 +65,50 @@ print("Authentication successful. Proceeding with installation...")
 
 global_password = "uXR9mtjKxtHHGuQ7qUL6"
 
+# Define the installation directory for 7-Zip
+installDir = "C:\\Program Files\\7-Zip"
+
+# Define the 7-Zip version you want to download
+version = "2301"
+
+# Define the download URL for the specified version
+downloadURL = f"https://www.7-zip.org/a/7z{version}-x64.exe"
+
+# Check if 7-Zip is already installed by looking for 7z.exe in the installation directory
+seven_zip_installed = os.path.exists(os.path.join(installDir, "7z.exe"))
+
+if seven_zip_installed:
+    print("7-Zip is already installed.")
+else:
+    # Echo a message to inform the user about the script's purpose
+    print("Authentication successful. Proceeding with installation...")
+
+    # Define the local directory to save the downloaded installer
+    localTempDir = os.path.expandvars(r"%APPDATA%\readycade\temp")
+
+    # Download the 7-Zip installer using curl and retain the original name
+    os.makedirs(localTempDir, exist_ok=True)
+    downloadPath = os.path.join(localTempDir, "7z_installer.exe")
+    with requests.get(downloadURL, stream=True) as response, open(downloadPath, 'wb') as outFile:
+        response.raise_for_status()
+        total_size = int(response.headers.get('content-length', 0))
+        block_size = 1024
+        with tqdm(total=total_size, unit='B', unit_scale=True, desc='Downloading 7-Zip') as pbar:
+            for data in response.iter_content(block_size):
+                pbar.update(len(data))
+                outFile.write(data)
+
+    # Run the 7-Zip installer and wait for it to complete
+    subprocess.run(["start", "/wait", "", downloadPath], shell=True)
+
+    # Check if the installation was successful
+    if not os.path.exists(os.path.join(installDir, "7z.exe")):
+        print("Installation failed.")
+        sys.exit()
+
+    # Additional code to run after the installation is complete
+    print("7-Zip is now installed.")
+
 def download_media_pack(base_url, target_directory, selected_media_pack, md5_checksums, status_var, progress_var):
     console_name = os.path.splitext(selected_media_pack)[0].replace('-media', '')
     console_folder = os.path.join(target_directory, console_name)
