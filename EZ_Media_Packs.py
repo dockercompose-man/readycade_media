@@ -6,8 +6,27 @@ import requests
 import hashlib
 import subprocess
 import shutil
+import sys
 import threading
 from tqdm import tqdm  # Import tqdm for progress bar
+
+# CHECK NETWORK SHARE
+print("Checking if the network share is available...")
+
+try:
+    subprocess.run(["ping", "-n", "1", "RECALBOX"], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    print("Network share found.")
+except subprocess.CalledProcessError:
+    print("Error: Could not connect to the network share \\RECALBOX.")
+    print("Please make sure you are connected to the network and try again.")
+    
+    # Show a message box
+    root = tk.Tk()
+    root.withdraw()  # Hide the main window
+    messagebox.showerror("Error", "Network Share not found. Please make sure you are connected to the network and try again.")
+    sys.exit()
+
+print()
 
 def download_media_pack(base_url, target_directory, selected_media_pack, md5_checksums, status_var, progress_var):
     console_name = os.path.splitext(selected_media_pack)[0].replace('-media', '')
