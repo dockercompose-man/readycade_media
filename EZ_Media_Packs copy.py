@@ -63,9 +63,8 @@ if auth_result != "Authenticated":
 
 print("Authentication successful. Proceeding with installation...")
 
-global_password = "your_global_password"
+global_password = "EvCoaxxbEZpZ6CBMBvxj"
 
-# Modify download_media_pack to pass partially_downloaded_file
 def download_media_pack(base_url, target_directory, selected_media_pack, md5_checksums, status_var, progress_var):
     console_name = os.path.splitext(selected_media_pack)[0].replace('-media', '')
     console_folder = os.path.join(target_directory, console_name)
@@ -86,6 +85,7 @@ def download_media_pack(base_url, target_directory, selected_media_pack, md5_che
             # If the user cancels the password prompt, cancel the download
             status_var.set("Download canceled. Password not provided.")
             root.after(2000, clear_status)
+            cleanup_temp_files(target_directory, console_folder, file_path, partially_downloaded_file)
             return None
 
     response = requests.get(download_url, stream=True)
@@ -109,27 +109,37 @@ def download_media_pack(base_url, target_directory, selected_media_pack, md5_che
             root.update_idletasks()  # Force GUI update
 
     actual_md5 = calculate_md5(file_path)
+    print(f"Actual MD5: {actual_md5}")
 
     expected_md5 = md5_checksums.get(selected_media_pack, "")
+    print(f"Expected MD5: {expected_md5}")
+
     if expected_md5 == actual_md5:
         status_var.set("Checksum verification successful.")
     else:
-        status_var.set("Checksum verification failed. Exiting...")
+        status_var.set(f"Checksum verification failed. Expected: {expected_md5}, Actual: {actual_md5}. Exiting...")
+        root.after(2000, cleanup_temp_files, target_directory, console_folder, file_path, partially_downloaded_file)
         return None
 
     status_var.set("Extraction in progress...")
 
-    if subprocess.run([r'C:\Program Files\7-Zip\7z.exe', 'x', f'-o{console_folder}', file_path]).returncode == 0:
+    # Modify the extraction command based on the tool you are using
+    extraction_command = [r'C:\Program Files\7-Zip\7z.exe', 'x', '-aoa', f'-o{console_folder}', '-p{}'.format(global_password), file_path]
+
+    # Check if the extraction is successful
+    if subprocess.run(extraction_command).returncode == 0:
         target_directory_network = r"\\RECALBOX\share\roms\{}".format(console_name)
-        shutil.copytree(os.path.join(target_directory, console_folder), target_directory_network, dirs_exist_ok=True)
+        shutil.copytree(console_folder, target_directory_network, dirs_exist_ok=True)
         status_var.set(f"{selected_media_pack} media pack copied to {target_directory_network}")
         status_var.set("Download and copy completed.")
         status_var.set("Deleting temporary files and folders...")
-        root.after(2000, cleanup_temp_files, target_directory, console_folder, file_path)
+        root.after(2000, cleanup_temp_files, target_directory, console_folder, file_path, partially_downloaded_file)
     else:
         status_var.set("Extraction failed. Temporary files are not deleted.")
+        root.after(2000, cleanup_temp_files, target_directory, console_folder, file_path, partially_downloaded_file)
 
     return console_folder
+
 
 def cleanup_temp_files(target_directory, console_folder, file_path, partially_downloaded_file):
     # Wait for a short time to ensure the file is not in use
@@ -359,7 +369,7 @@ media_packs = [
 ]
 
 md5_checksums = {
-    "64dd-media.7z": "a2e36d62227447a9217b4a2b2c6bdef2",
+    "64dd-media.7z": "6d5573472237d323aeaf3e4fa609883e",
     "amiga600-media.7z": "864c64b15e80ee992bf011894b5e5980",
     "amiga1200-media.7z": "35444479df16c4bad8476ce5e5fd2e76",
     "amstradcpc-media.7z": "211e304e1396e99c487f566ff5acd4ee",
