@@ -103,7 +103,11 @@ def download_thread():
             browse_text.set("Download failed.")
 
 root = tk.Tk()
+
 root.title("Readycade")
+
+# Remove the TK icon
+root.iconbitmap(default="icon.ico")
 
 # Logo
 logo_path = os.path.join(os.path.dirname(__file__), 'logo.png')
@@ -130,10 +134,14 @@ media_pack_combobox = ttk.Combobox(root, values=media_packs)
 media_pack_combobox.grid(column=1, row=2)
 media_pack_combobox.set("Select a media pack")
 
-# Browse Button
+# Browse Button with added padding
 browse_text = tk.StringVar()
 browse_btn = tk.Button(root, textvariable=browse_text, command=open_file, font="open-sans", bg="#ff6600", fg="white", height=2, width=15)
 browse_text.set("Download")
-browse_btn.grid(column=1, row=3)
+browse_btn.grid(column=1, row=3, pady=10)  # Adjust the value of pady as needed
+
+# Rest of your code...
+canvas = tk.Canvas(root, width=600, height=50)
+canvas.grid(columnspan=3)
 
 root.mainloop()

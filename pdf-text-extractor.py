@@ -9,7 +9,7 @@ root = tk.Tk()
 root.title("Readycade")
 
 # Remove the TK icon
-#root.iconbitmap(default="icon.ico")
+root.iconbitmap(default="icon.ico")
 
 # Logo
 logo = Image.open('logo.png')
