@@ -1,3 +1,22 @@
+# /*************************************************************************
+# * 
+# * READYCADE CONFIDENTIAL
+# * __________________
+# * 
+# *  [2024] Readycade Incorporated 
+# *  All Rights Reserved.
+# * 
+# * NOTICE:  All information contained herein is, and remains
+# * the property of Readycade Incorporated and its suppliers,
+# * if any.  The intellectual and technical concepts contained
+# * herein are proprietary to Readycade Incorporated
+# * and its suppliers and may be covered by U.S. and Foreign Patents,
+# * patents in process, and are protected by trade secret or copyright law.
+# * Dissemination of this information or reproduction of this material
+# * is strictly forbidden unless prior written permission is obtained
+# * from Readycade Incorporated.
+# */
+
 import tkinter as tk
 from tkinter import ttk, messagebox, simpledialog
 from PIL import Image, ImageTk
@@ -12,12 +31,102 @@ import threading
 import time
 from tqdm import tqdm
 
+# CHECK NETWORK SHARE
+print("Checking if the network share is available...")
+
+try:
+    subprocess.run(["ping", "-n", "1", "RECALBOX"], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    print("Network share found.")
+except subprocess.CalledProcessError:
+    print("Error: Could not connect to the network share \\RECALBOX.")
+    print("Please make sure you are connected to the network and try again.")
+    
+    # Show a message box
+    root = tk.Tk()
+    root.withdraw()  # Hide the main window
+    messagebox.showerror("Error", "Network Share not found. Please make sure you are connected to the network and try again.")
+    sys.exit()
+
+print()
+
 # VARS
 base_url = "https://forum.readycade.com/readycade_configs/"
 auth_url = "https://forum.readycade.com/auth.php"
 
 # Global variable to track whether the download should be canceled
 download_canceled = False
+
+def get_credentials():
+    db_username = simpledialog.askstring("Authentication", "Enter your username:")
+    db_password = simpledialog.askstring("Authentication", "Enter your password:", show='*')
+
+    if db_username and db_password:
+        print(f"Username: {db_username}, Password: {db_password}")
+    else:
+        print("Authentication canceled.")
+        sys.exit()
+
+# Get username and password from user input
+db_username = simpledialog.askstring("Authentication", "Enter your username:")
+db_password = simpledialog.askstring("Authentication", "Enter your password:", show='*')
+
+# AUTHENTICATION
+# Perform authentication by sending a POST request to auth.php using the captured credentials
+data = {"dbUsername": db_username, "dbPassword": db_password}
+response = requests.post(auth_url, data=data)
+
+# Check the authentication result
+auth_result = response.text.strip()
+
+if auth_result != "Authenticated":
+    print("Authentication failed. Exiting script...")
+    sys.exit()
+
+print("Authentication successful. Proceeding with installation...")
+
+# Define the installation directory for 7-Zip
+installDir = "C:\\Program Files\\7-Zip"
+
+# Define the 7-Zip version you want to download
+version = "2301"
+
+# Define the download URL for the specified version
+downloadURL = f"https://www.7-zip.org/a/7z{version}-x64.exe"
+
+# Check if 7-Zip is already installed by looking for 7z.exe in the installation directory
+seven_zip_installed = os.path.exists(os.path.join(installDir, "7z.exe"))
+
+if seven_zip_installed:
+    print("7-Zip is already installed.")
+else:
+    # Echo a message to inform the user about the script's purpose
+    print("Authentication successful. Proceeding with installation...")
+
+    # Define the local directory to save the downloaded installer
+    localTempDir = os.path.expandvars(r"%APPDATA%\readycade\temp")
+
+    # Download the 7-Zip installer using curl and retain the original name
+    os.makedirs(localTempDir, exist_ok=True)
+    downloadPath = os.path.join(localTempDir, "7z_installer.exe")
+    with requests.get(downloadURL, stream=True) as response, open(downloadPath, 'wb') as outFile:
+        response.raise_for_status()
+        total_size = int(response.headers.get('content-length', 0))
+        block_size = 1024
+        with tqdm(total=total_size, unit='B', unit_scale=True, desc='Downloading 7-Zip') as pbar:
+            for data in response.iter_content(block_size):
+                pbar.update(len(data))
+                outFile.write(data)
+
+    # Run the 7-Zip installer and wait for it to complete
+    subprocess.run(["start", "/wait", "", downloadPath], shell=True)
+
+    # Check if the installation was successful
+    if not os.path.exists(os.path.join(installDir, "7z.exe")):
+        print("Installation failed.")
+        sys.exit()
+
+    # Additional code to run after the installation is complete
+    print("7-Zip is now installed.")
 
 global_password = "o2M8K2zjs67ysJR8jWy7"
 

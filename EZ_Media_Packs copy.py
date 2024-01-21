@@ -235,6 +235,41 @@ def download_thread():
     if selected_media_pack:
         base_url = "https://forum.readycade.com/readycade_media/"
         target_directory = os.path.expandvars(r"%APPDATA%\readycade\mediapacks")
+
+        # Path to the downloaded media pack file
+        media_file_name = selected_media_pack
+        downloaded_media_path = os.path.join(target_directory, media_file_name)
+
+        # URL for the MD5 file on the website
+        md5_file_url = base_url + media_file_name + '.md5'
+
+        try:
+            # Fetch the content of the .md5 file from the server
+            md5_response = requests.get(md5_file_url)
+            md5_response.raise_for_status()
+            actual_md5_line = md5_response.text.strip().split('\n')[0]  # Get the first line
+            actual_md5 = actual_md5_line.split()[0]  # Extract only the hash
+            print(f"Actual MD5 from .md5 file on the website: {actual_md5}")
+
+            # Compare the MD5 values
+            expected_md5 = md5_checksums.get(media_file_name, "")
+            print(f"Expected MD5: {expected_md5}")
+
+            if expected_md5 != actual_md5:
+                print("MD5 values do not match. Exiting...")
+                status_var.set(f"MD5 values do not match for {media_file_name}. Exiting...")
+                root.after(2000, clear_status)
+                root.after(2000, reset_download_button_text)  # Reset the Download button text
+                return None
+
+        except requests.exceptions.RequestException as e:
+            print(f"Error fetching .md5 file from {md5_file_url}: {e}")
+            status_var.set(f"Error fetching .md5 file from {md5_file_url}. Exiting...")
+            root.after(2000, clear_status)
+            root.after(2000, reset_download_button_text)  # Reset the Download button text
+            return None
+
+        # Continue with the rest of the download process
         console_folder = download_media_pack(base_url, target_directory, selected_media_pack, md5_checksums, status_var, progress_var)
 
         if console_folder:
@@ -244,9 +279,15 @@ def download_thread():
         else:
             browse_text.set("Download failed.")
             root.after(1000, clear_status)  # Schedule clearing status after 1000 milliseconds (1 second)
+            root.after(2000, reset_download_button_text)  # Reset the Download button text
     else:
         browse_text.set("Download failed.")
         root.after(1000, clear_status)  # Schedule clearing status after 1000 milliseconds (1 second)
+        root.after(2000, reset_download_button_text)  # Reset the Download button text
+
+def reset_download_button_text():
+    browse_text.set("Download")
+
 
 
 def open_file():
@@ -413,7 +454,7 @@ media_packs = [
 ]
 
 md5_checksums = {
-    "64dd-media.7z": "702633527841f5effa49552d15a75f06",
+    "64dd-media.7z": "02633527841f5effa49552d15a75f06",
     "amiga600-media.7z": "ec0ee2c4462d58dcef0270d59fb879e4",
     "amiga1200-media.7z": "0b21b5401db62c1e32cd61a230fd8555",
     "amstradcpc-media.7z": "17d98adf4e1ae1c2e95c0e3b19643d77",
