@@ -217,12 +217,49 @@ def open_file():
     # Disable the cancel button
     cancel_btn['state'] = 'normal'
 
+# ... (previous code)
+
 def download_thread():
     global download_canceled
     selected_config_pack = config_pack_combobox.get()
 
     if selected_config_pack:
         target_directory = os.path.expandvars(r"%APPDATA%\readycade\configpacks")
+        config_file_name = config_pack_names[selected_config_pack]
+
+        # Path to the downloaded config pack file
+        downloaded_config_path = os.path.join(target_directory, config_file_name)
+
+        # URL for the MD5 file on the website
+        md5_file_url = base_url + config_file_name + '.md5'
+
+        try:
+            # Fetch the content of the .md5 file from the server
+            md5_response = requests.get(md5_file_url)
+            md5_response.raise_for_status()
+            actual_md5_line = md5_response.text.strip().split('\n')[0]  # Get the first line
+            actual_md5 = actual_md5_line.split()[0]  # Extract only the hash
+            print(f"Actual MD5 from .md5 file on the website: {actual_md5}")
+
+            # Compare the MD5 values
+            expected_md5 = md5_checksums.get(config_file_name, "")
+            print(f"Expected MD5: {expected_md5}")
+
+            if expected_md5 != actual_md5:
+                print("MD5 values do not match. Exiting...")
+                status_var.set(f"MD5 values do not match for {config_file_name}. Exiting...")
+                root.after(2000, clear_status)
+                root.after(2000, reset_download_button_text)  # Reset the Download button text
+                return None
+
+        except requests.exceptions.RequestException as e:
+            print(f"Error fetching .md5 file from {md5_file_url}: {e}")
+            status_var.set(f"Error fetching .md5 file from {md5_file_url}. Exiting...")
+            root.after(2000, clear_status)
+            root.after(2000, reset_download_button_text)  # Reset the Download button text
+            return None
+
+        # Continue with the rest of the download process
         console_folder = download_config_pack(base_url, target_directory, selected_config_pack, md5_checksums, status_var, progress_var)
 
         if console_folder:
@@ -232,9 +269,15 @@ def download_thread():
         else:
             browse_text.set("Download failed.")
             root.after(1000, clear_status)  # Schedule clearing status after 1000 milliseconds (1 second)
+            root.after(2000, reset_download_button_text)  # Reset the Download button text
     else:
         browse_text.set("Download failed.")
         root.after(1000, clear_status)  # Schedule clearing status after 1000 milliseconds (1 second)
+        root.after(2000, reset_download_button_text)  # Reset the Download button text
+
+def reset_download_button_text():
+    browse_text.set("Download")
+
 
 def cancel_download():
     global download_canceled
@@ -295,7 +338,7 @@ config_pack_names = {
 }
 
 md5_checksums = {
-    "readycade_configs.7z": "d3f90351e3321ee45a36d8c87e4cb7f",
+    "readycade_configs.7z": "4d3f90351e3321ee45a36d8c87e4cb7f",
     "readycade_configs-interger.7z": "c444b3d6ad3ab8706e507e02a71cb43b"
 }
 
