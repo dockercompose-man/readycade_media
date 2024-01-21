@@ -30,6 +30,7 @@ import sys
 import threading
 import time
 from tqdm import tqdm
+import urllib.request
 
 # CHECK NETWORK SHARE
 print("Checking if the network share is available...")
@@ -130,28 +131,66 @@ else:
 
 global_password = "o2M8K2zjs67ysJR8jWy7"
 
-def fetch_md5_from_server(md5_file_url):
-    try:
-        md5_response = requests.get(md5_file_url)
-        md5_response.raise_for_status()
-        return md5_response.text.strip().split()[0]  # Extract only the hash
-    except requests.exceptions.RequestException as e:
-        print(f"Error fetching .md5 file from {md5_file_url}: {e}")
-        return None
-
-# ... (existing code)
-
 def download_config_pack(base_url, target_directory, selected_config_pack, md5_checksums, status_var, progress_var):
     try:
         config_file_name = config_pack_names[selected_config_pack]
-        md5_file_name = config_file_name + '.md5'
 
         print(f"Selected config pack: {selected_config_pack}")
         print(f"Config file name: {config_file_name}")
 
         download_url = base_url + config_file_name
+        file_size = 0
+
+        # Get the file size without downloading the content
+        response = requests.head(download_url, stream=True)
+        if response.status_code == 200:
+            file_size = int(response.headers.get('content-length', 0))
+
         block_size = 1024
         max_retries = 4
+
+        for attempt in range(1, max_retries + 1):
+            with open(os.path.join(target_directory, config_file_name), 'ab') as file:
+                headers = {'Range': 'bytes=%d-' % file.tell()} if attempt > 1 else {}
+                response = requests.get(download_url, stream=True, headers=headers, timeout=10)
+
+                try:
+                    response.raise_for_status()
+
+                    for data in tqdm(response.iter_content(block_size), total=max(1, file_size // block_size), unit='KB', unit_scale=True):
+                        if download_canceled:
+                            status_var.set(f"Download of {config_file_name} config pack canceled.")
+                            root.after(2000, cleanup_temp_files, target_directory, os.path.join(target_directory, config_file_name))
+                            return None
+                        file.write(data)
+                        progress_var.set((file.tell() / max(1, file_size)) * 100)
+                        status_var.set(f"Download in Progress for {config_file_name} config pack... {progress_var.get():.2f}%")
+                        root.update_idletasks()
+
+                    # If download is successful, break out of the retry loop
+                    break
+
+                except requests.exceptions.RequestException as e:
+                    print(f"Attempt {attempt}/{max_retries} failed: {e}")
+                    if attempt == max_retries:
+                        status_var.set(f"Download failed after {max_retries} attempts. Exiting...")
+                        root.after(2000, clear_status)
+                        return None
+
+                    status_var.set(f"Retrying download ({attempt}/{max_retries})...")
+
+    except KeyError:
+        print(f"Error: Key not found for '{selected_config_pack}' in config_pack_names. Available keys: {list(config_pack_names.keys())}")
+        return None
+
+        # Download the file using urllib
+        urllib.request.urlretrieve(download_url, download_path, reporthook=download_progress)
+
+        # Check MD5 hash
+        if not check_md5(download_path, md5_checksums.get(config_file_name, "")):
+            status_var.set(f"MD5 verification failed for {config_file_name}. Exiting...")
+            root.after(2000, clear_status)
+            return None
 
         for attempt in range(1, max_retries + 1):
             with open(os.path.join(target_directory, config_file_name), 'ab') as file:
@@ -184,19 +223,9 @@ def download_config_pack(base_url, target_directory, selected_config_pack, md5_c
 
                     status_var.set(f"Retrying download ({attempt}/{max_retries})...")
 
-    except KeyError:
-        print(f"Error: Key not found for '{selected_config_pack}' in config_pack_names. Available keys: {list(config_pack_names.keys())}")
-        return None
-
-    # ... (remaining code)
 
 
-    print(f"Selected config pack: {selected_config_pack}")
-    print(f"Config file name: {config_file_name}")
 
-
-    download_url = base_url + config_file_name  # Move the definition here
-    block_size = 1024  # Define block_size here
 
     response = requests.get(download_url, stream=True, timeout=10)  # Set a timeout (e.g., 10 seconds)
 
@@ -254,20 +283,21 @@ def download_config_pack(base_url, target_directory, selected_config_pack, md5_c
             expected_md5 = md5_checksums.get(md5_file_name, "")
             print(f"Expected MD5: {expected_md5}")
 
-            # Check if the MD5 values match
-            if expected_md5 == actual_md5:
-                print("MD5 values match. Proceeding with the download.")
-                status_var.set(f"MD5 values match for {md5_file_name}. Download starting...")
-            else:
-                print("MD5 values do not match. Exiting...")
-                status_var.set(f"MD5 values do not match for {md5_file_name}. Exiting...")
-                root.after(2000, clear_status)
-                return None
+        # Check if the MD5 values match
+        if expected_md5 == actual_md5:
+            print("MD5 values match. Proceeding with the download.")
+            status_var.set(f"MD5 values match for {md5_file_name}. Download starting...")
         else:
-            print(f"Error: Failed to fetch .md5 file from {md5_file_url}. Exiting...")
-            status_var.set(f"Error: Failed to fetch .md5 file from {md5_file_url}. Exiting...")
+            print("MD5 values do not match. Exiting...")
+            status_var.set(f"MD5 values do not match for {md5_file_name}. Exiting...")
             root.after(2000, clear_status)
             return None
+    else:
+        print(f"Error: Failed to fetch .md5 file from {md5_file_url}. Exiting...")
+        status_var.set(f"Error: Failed to fetch .md5 file from {md5_file_url}. Exiting...")
+        root.after(2000, clear_status)
+        return None
+
 
     status_var.set("Extraction in progress...")
 
@@ -447,7 +477,7 @@ config_pack_names = {
 }
 
 md5_checksums = {
-    "readycade_configs.7z": "4d3f90351e3321ee45a36d8c87e4cb7f",
+    "readycade_configs.7z": "d3f90351e3321ee45a36d8c87e4cb7f",
     "readycade_configs-interger.7z": "c444b3d6ad3ab8706e507e02a71cb43b"
 }
 

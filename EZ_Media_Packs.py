@@ -132,25 +132,45 @@ def download_media_pack(base_url, target_directory, selected_media_pack, md5_che
             cleanup_temp_files(target_directory, console_folder, file_path, partially_downloaded_file)
             return None
 
-    response = requests.get(download_url, stream=True)
-    file_size = int(response.headers.get('content-length', 0))
-    block_size = 1024  # 1 KB
-    current_size = 0
+    # Download Media Packs Loop
+    max_attempts = 4
+    attempt = 0
+    while True:
+        attempt += 1
 
-    with open(file_path, 'wb') as file:
-        for data in tqdm(response.iter_content(block_size), total=file_size // block_size, unit='KB', unit_scale=True):
-            if download_canceled:
-                # User canceled the download, break out of the loop
-                status_var.set(f"Download of {console_name} media pack canceled.")
-                root.after(2000, cleanup_temp_files, target_directory, console_folder, file_path, partially_downloaded_file)
+        response = requests.get(download_url, stream=True)
+        file_size = int(response.headers.get('content-length', 0))
+        block_size = 1024  # 1 KB
+        current_size = 0
+
+        with open(file_path, 'wb') as file:
+            for data in tqdm(response.iter_content(block_size), total=file_size // block_size, unit='KB', unit_scale=True):
+                if download_canceled:
+                    # User canceled the download, break out of the loop
+                    status_var.set(f"Download of {console_name} media pack canceled.")
+                    root.after(2000, cleanup_temp_files, target_directory, console_folder, file_path, partially_downloaded_file)
+                    return None
+
+                file.write(data)
+                current_size += len(data)
+                progress = (current_size / file_size) * 100
+                progress_var.set(progress)
+                status_var.set(f"Installation in Progress for {console_name} media pack... {progress:.2f}%")
+                root.update_idletasks()  # Force GUI update
+
+        # Check if the download was successful (200 indicates success)
+        if response.status_code == 200:
+            print(f'Download of {selected_media_pack} was successful.')
+            break
+        else:
+            print(f'Download of {selected_media_pack} failed on attempt {attempt}.')
+            if attempt < max_attempts:
+                print('Retrying in 5 seconds...')
+                time.sleep(5)
+            else:
+                print('Maximum download attempts reached. Download failed.')
+                cleanup_temp_files(target_directory, console_folder, file_path, partially_downloaded_file)
                 return None
-
-            file.write(data)
-            current_size += len(data)
-            progress = (current_size / file_size) * 100
-            progress_var.set(progress)
-            status_var.set(f"Installation in Progress for {console_name} media pack... {progress:.2f}%")
-            root.update_idletasks()  # Force GUI update
 
     actual_md5 = calculate_md5(file_path)
     print(f"Actual MD5: {actual_md5}")
