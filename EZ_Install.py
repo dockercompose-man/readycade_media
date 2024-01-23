@@ -54,7 +54,7 @@ def download_file(url, target_directory, status_var, progress_var, max_retries=3
                 else:
                     total_size_in_bytes = int(response.headers.get('content-length', 0))
 
-                with open(local_filename, 'ab') as f, tqdm(total=total_size_in_bytes, unit='B', unit_scale=True, desc=f"Downloading {display_filename}") as bar:
+                with open(local_filename, 'ab') as f, tqdm(total=total_size_in_bytes, unit='B', unit_scale=True) as bar:
                     for chunk in response.iter_content(chunk_size=block_size):
                         if download_canceled:
                             status_var.set(f"Download canceled for {display_filename}.")
@@ -65,7 +65,7 @@ def download_file(url, target_directory, status_var, progress_var, max_retries=3
                         downloaded_size += len(chunk)
                         bar.update(len(chunk))
                         progress_var.set((downloaded_size / max(1, total_size_in_bytes)) * 100)
-                        status_var.set(f"Download in Progress for {display_filename}... {progress_var.get():.2f}%")
+                        status_var.set(f"Download in Progress for {display_filename}...")
                         root.update_idletasks()
 
                 return local_filename
@@ -78,12 +78,19 @@ def download_file(url, target_directory, status_var, progress_var, max_retries=3
         # Implement exponential backoff outside the loop
         wait_time = 2 ** attempt
         print(f"Retrying in {wait_time} seconds...")
+        status_var.set(f"Resuming Download for {display_filename}...")
         time.sleep(wait_time)
 
     status_var.set(f"Max retries reached. Download failed for {display_filename}.")
     root.after(2000, clear_status)
     root.after(2000, reset_download_button_delayed)  # Reset the Download button text
     return None
+
+
+
+
+
+
 
 def calculate_md5_from_file_url(file_url):
     """Calculate the MD5 hash of a file from its URL."""
@@ -189,72 +196,6 @@ def open_file():
     # Disable the cancel button
     cancel_btn['state'] = 'normal'
 
-
-
-def download_thread():
-    global download_canceled
-    selected_config_pack = config_pack_combobox.get()
-
-    if selected_config_pack:
-        target_directory = os.path.expandvars(r"%APPDATA%\readycade\configpacks")
-        config_file_name = config_pack_names[selected_config_pack]
-
-        # URL for the config pack file on the website
-        config_pack_file_url = base_url + config_file_name
-
-        try:
-            # Fetch the content of the .md5 file from the server
-            md5_file_url = config_pack_file_url + '.md5'
-            md5_response = requests.get(md5_file_url)
-            md5_response.raise_for_status()
-            actual_md5_line = md5_response.text.strip().split('\n')[0]  # Get the first line
-            actual_md5 = actual_md5_line.split()[0]  # Extract only the hash
-            print(f"Actual MD5 from .md5 file on the website: {actual_md5}")
-
-            # Compare the MD5 values
-            expected_md5 = md5_checksums.get(config_file_name, "")
-            print(f"Expected MD5: {expected_md5}")
-
-            if expected_md5 != actual_md5:
-                print("MD5 values do not match. Exiting...")
-                status_var.set(f"MD5 values do not match for {config_file_name}. Exiting...")
-                root.after(2000, clear_status)
-                root.after(2000, reset_download_button_text)  # Reset the Download button text
-                return None
-
-            # Download the config pack file
-            downloaded_file = download_file(config_pack_file_url, target_directory, status_var, progress_var)
-
-            # Check if the downloaded file is None (indicating an error)
-            if downloaded_file is None:
-                return None
-
-            # Calculate the MD5 hash of the downloaded file
-            actual_md5 = calculate_file_md5(downloaded_file)
-            print(f"Actual MD5 from the downloaded file: {actual_md5}")
-
-            # Compare the MD5 values
-            if expected_md5 != actual_md5:
-                print("MD5 values do not match. Exiting...")
-                status_var.set(f"MD5 values do not match for {config_file_name}. Exiting...")
-                root.after(2000, clear_status)
-                status_var.set(f"Try your download of {config_file_name} again.")
-                root.after(2000, reset_download_button_text)  # Reset the Download button text
-            else:
-                browse_text.set("Download")
-                print("MD5 values Match for {config_file_name}")
-                print("Config Pack Installed", "Config Pack Installed! Please Select Another or Exit the application.")
-                messagebox.showinfo("Config Pack Installed", "Config Pack Installed! Please Select Another or Exit the application.")
-                root.after(1000, clear_status)  # Schedule clearing status after 1000 milliseconds (1 second)
-        except requests.exceptions.RequestException as e:
-            print(f"Error during download: {e}")
-            status_var.set(f"Error during download. Exiting...")
-            root.after(2000, clear_status)
-            root.after(2000, reset_download_button_text)  # Reset the Download button text
-    else:
-        browse_text.set("Download failed.")
-        root.after(1000, clear_status)  # Schedule clearing status after 1000 milliseconds (1 second)
-        root.after(2000, reset_download_button_text)  # Reset the Download button text
 def download_thread():
     global download_canceled
     selected_config_pack = config_pack_combobox.get()
