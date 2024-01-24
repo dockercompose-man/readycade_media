@@ -1,211 +1,247 @@
+"""
+*************************************************************************
+ * 
+ * READYCADE CONFIDENTIAL
+ * __________________
+ * 
+ *  [2024] Readycade Incorporated 
+ *  All Rights Reserved.
+ * 
+ * NOTICE:  All information contained herein is, and remains
+ * the property of Readycade Incorporated and its suppliers,
+ * if any.  The intellectual and technical concepts contained
+ * herein are proprietary to Readycade Incorporated
+ * and its suppliers and may be covered by U.S. and Foreign Patents,
+ * patents in process, and are protected by trade secret or copyright law.
+ * Dissemination of this information or reproduction of this material
+ * is strictly forbidden unless prior written permission is obtained
+ * from Readycade Incorporated.
+"""
+
 import tkinter as tk
 from tkinter import ttk, messagebox, simpledialog
 from PIL import Image, ImageTk
 import os
 import requests
+from requests.exceptions import RequestException
 import hashlib
+from http.client import IncompleteRead
 import subprocess
 import shutil
 import sys
 import threading
 import time
-from tqdm import tqdm  # Import tqdm for progress bar
-
-# CHECK NETWORK SHARE
-print("Checking if the network share is available...")
-
-try:
-    subprocess.run(["ping", "-n", "1", "RECALBOX"], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    print("Network share found.")
-except subprocess.CalledProcessError:
-    print("Error: Could not connect to the network share \\RECALBOX.")
-    print("Please make sure you are connected to the network and try again.")
-    
-    # Show a message box
-    root = tk.Tk()
-    root.withdraw()  # Hide the main window
-    messagebox.showerror("Error", "Network Share not found. Please make sure you are connected to the network and try again.")
-    sys.exit()
-
-print()
+from tqdm import tqdm
 
 # VARS
+base_url = "https://forum.readycade.com/readycade_media/"
 auth_url = "https://forum.readycade.com/auth.php"
 
 # Global variable to track whether the download should be canceled
 download_canceled = False
 
-def get_credentials():
-    db_username = simpledialog.askstring("Authentication", "Enter your username:")
-    db_password = simpledialog.askstring("Authentication", "Enter your password:", show='*')
-
-    if db_username and db_password:
-        print(f"Username: {db_username}, Password: {db_password}")
-    else:
-        print("Authentication canceled.")
-        sys.exit()
-
-# Get username and password from user input
-db_username = simpledialog.askstring("Authentication", "Enter your username:")
-db_password = simpledialog.askstring("Authentication", "Enter your password:", show='*')
-
-# AUTHENTICATION
-# Perform authentication by sending a POST request to auth.php using the captured credentials
-data = {"dbUsername": db_username, "dbPassword": db_password}
-response = requests.post(auth_url, data=data)
-
-# Check the authentication result
-auth_result = response.text.strip()
-
-if auth_result != "Authenticated":
-    print("Authentication failed. Exiting script...")
-    sys.exit()
-
-print("Authentication successful. Proceeding with installation...")
-
 global_password = "uXR9mtjKxtHHGuQ7qUL6"
 
-# Define the installation directory for 7-Zip
-installDir = "C:\\Program Files\\7-Zip"
+def download_file(url, target_directory, status_var, progress_var, max_retries=3):
+    local_filename = os.path.join(target_directory, os.path.basename(url))
+    display_filename = os.path.basename(local_filename)
+    block_size = 8192  # 8 Kibibytes
 
-# Define the 7-Zip version you want to download
-version = "2301"
+    for attempt in range(1, max_retries + 1):
+        try:
+            # Get the size of the existing file
+            downloaded_size = os.path.getsize(local_filename) if os.path.exists(local_filename) else 0
 
-# Define the download URL for the specified version
-downloadURL = f"https://www.7-zip.org/a/7z{version}-x64.exe"
+            headers = {}
+            if downloaded_size > 0:
+                headers['Range'] = f"bytes={downloaded_size}-"
 
-# Check if 7-Zip is already installed by looking for 7z.exe in the installation directory
-seven_zip_installed = os.path.exists(os.path.join(installDir, "7z.exe"))
+            with requests.get(url, stream=True, headers=headers, timeout=10) as response:
+                response.raise_for_status()
 
-if seven_zip_installed:
-    print("7-Zip is already installed.")
-else:
-    # Echo a message to inform the user about the script's purpose
-    print("Authentication successful. Proceeding with installation...")
+                # Check for a 206 status code, which indicates a partial content response
+                if response.status_code == 206:
+                    range_info = response.headers.get('content-range')
+                    if range_info:
+                        range_parts = range_info.split(' ')[-1].split('-')
+                        start = int(range_parts[0])
+                        total_parts = range_parts[1].split('/')
+                        total = int(total_parts[0])
+                        total_size_in_bytes = total - start + 1
+                    else:
+                        total_size_in_bytes = int(response.headers.get('content-length', 0))
+                else:
+                    total_size_in_bytes = int(response.headers.get('content-length', 0))
 
-    # Define the local directory to save the downloaded installer
-    localTempDir = os.path.expandvars(r"%APPDATA%\readycade\temp")
+                with open(local_filename, 'ab') as f, tqdm(total=total_size_in_bytes, unit='B', unit_scale=True) as bar:
+                    for chunk in response.iter_content(chunk_size=block_size):
+                        if download_canceled:
+                            status_var.set(f"Download canceled for {display_filename}.")
+                            root.after(2000, cleanup_temp_files, target_directory, local_filename)
+                            return None
 
-    # Download the 7-Zip installer using curl and retain the original name
-    os.makedirs(localTempDir, exist_ok=True)
-    downloadPath = os.path.join(localTempDir, "7z_installer.exe")
-    with requests.get(downloadURL, stream=True) as response, open(downloadPath, 'wb') as outFile:
-        response.raise_for_status()
-        total_size = int(response.headers.get('content-length', 0))
-        block_size = 1024
-        with tqdm(total=total_size, unit='B', unit_scale=True, desc='Downloading 7-Zip') as pbar:
-            for data in response.iter_content(block_size):
-                pbar.update(len(data))
-                outFile.write(data)
+                        f.write(chunk)
+                        downloaded_size += len(chunk)
+                        bar.update(len(chunk))
+                        progress_var.set((downloaded_size / max(1, total_size_in_bytes)) * 100)
+                        status_var.set(f"Download in Progress for {display_filename} Please Wait...")
+                        root.update_idletasks()
 
-    # Run the 7-Zip installer and wait for it to complete
-    subprocess.run(["start", "/wait", "", downloadPath], shell=True)
+                return local_filename
 
-    # Check if the installation was successful
-    if not os.path.exists(os.path.join(installDir, "7z.exe")):
-        print("Installation failed.")
-        sys.exit()
-
-    # Additional code to run after the installation is complete
-    print("7-Zip is now installed.")
-
-def download_media_pack(base_url, target_directory, selected_media_pack, md5_checksums, status_var, progress_var):
-    console_name = os.path.splitext(selected_media_pack)[0].replace('-media', '')
-    console_folder = os.path.join(target_directory, console_name)
-    os.makedirs(console_folder, exist_ok=True)
-
-    download_url = base_url + selected_media_pack
-    file_path = os.path.join(target_directory, selected_media_pack)
-    partially_downloaded_file = os.path.join(target_directory, f"{console_name}-media.7z")
-
-    # Check if the selected media pack requires a password
-    if selected_media_pack in md5_checksums:
-        # Use the global password for all password-protected media packs
-        password = global_password
-        if not password:
-            # Prompt the user for the password if global_password is not set
-            password = simpledialog.askstring("Password", f"Enter the password for {selected_media_pack}:", show='*')
-        if not password:
-            # If the user cancels the password prompt, cancel the download
-            status_var.set("Download canceled. Password not provided.")
+        except requests.exceptions.RequestException as e:
+            print(f"Error during download attempt {attempt}: {e}")
             root.after(2000, clear_status)
-            cleanup_temp_files(target_directory, console_folder, file_path, partially_downloaded_file)
+            root.after(2000, reset_download_button_delayed)  # Reset the Download button text
+
+        # Implement exponential backoff outside the loop
+        wait_time = 2 ** attempt
+        print(f"Retrying in {wait_time} seconds...")
+        status_var.set(f"Resuming Download for {display_filename}...")
+        time.sleep(wait_time)
+
+    status_var.set(f"Max retries reached. Download failed for {display_filename}.")
+    root.after(2000, clear_status)
+    root.after(2000, reset_download_button_delayed)  # Reset the Download button text
+    return None
+
+
+def calculate_md5_from_file_url(file_url):
+    """Calculate the MD5 hash of a file from its URL."""
+    md5 = hashlib.md5()
+    with requests.get(file_url, stream=True) as response:
+        response.raise_for_status()
+        for chunk in response.iter_content(chunk_size=8192):
+            md5.update(chunk)
+    return md5.hexdigest()
+
+def calculate_file_md5(file_path):
+    """Calculate the MD5 hash of a file."""
+    md5 = hashlib.md5()
+    with open(file_path, 'rb') as file:
+        while chunk := file.read(8192):
+            md5.update(chunk)
+    return md5.hexdigest()
+
+def download_config_pack(base_url, target_directory, selected_config_pack, md5_checksums, status_var, progress_var):
+    try:
+        config_file_name = config_pack_names[selected_config_pack]
+
+        print(f"Selected media pack: {selected_config_pack}")
+        print(f"Media file name: {config_file_name}")
+
+        # Compare the MD5 value from the server with the expected MD5
+        expected_md5 = md5_checksums.get(config_file_name, "")
+        print(f"Expected MD5: {expected_md5}")
+
+        if expected_md5 != server_md5:
+            print("MD5 values from the server do not match the expected MD5. Exiting...")
+            status_var.set(f"MD5 values from the server do not match the expected MD5 for {config_file_name}. Exiting...")
+            root.after(2000, clear_status)
+            root.after(2000, reset_download_button_text)  # Reset the Download button text
             return None
 
-    # Download Media Packs Loop
-    max_attempts = 4
-    attempt = 0
-    while True:
-        attempt += 1
+        # Proceed with the rest of the download process
+        console_folder = download_file(config_pack_file_url, target_directory, status_var, progress_var)
 
-        response = requests.get(download_url, stream=True)
-        file_size = int(response.headers.get('content-length', 0))
-        block_size = 1024  # 1 KB
-        current_size = 0
+            # Check if the downloaded file is None (indicating an error)
+        if console_folder is None:
+            return None
 
-        with open(file_path, 'wb') as file:
-            for data in tqdm(response.iter_content(block_size), total=file_size // block_size, unit='KB', unit_scale=True):
-                if download_canceled:
-                    # User canceled the download, break out of the loop
-                    status_var.set(f"Download of {console_name} media pack canceled.")
-                    root.after(2000, cleanup_temp_files, target_directory, console_folder, file_path, partially_downloaded_file)
-                    return None
-
-                file.write(data)
-                current_size += len(data)
-                progress = (current_size / file_size) * 100
-                progress_var.set(progress)
-                status_var.set(f"Installation in Progress for {console_name} media pack... {progress:.2f}%")
-                root.update_idletasks()  # Force GUI update
-
-        # Check if the download was successful (200 indicates success)
-        if response.status_code == 200:
-            print(f'Download of {selected_media_pack} was successful.')
-            break
+        if console_folder:
+            browse_text.set("Download")
+            messagebox.showinfo("Media Pack Installed!", "Media Pack Installed! Please Reboot Your Readycade Now.")
+            root.after(1000, clear_status)  # Schedule clearing status after 1000 milliseconds (1 second)
         else:
-            print(f'Download of {selected_media_pack} failed on attempt {attempt}.')
-            if attempt < max_attempts:
-                print('Retrying in 5 seconds...')
-                time.sleep(5)
-            else:
-                print('Maximum download attempts reached. Download failed.')
-                cleanup_temp_files(target_directory, console_folder, file_path, partially_downloaded_file)
-                return None
-
-    actual_md5 = calculate_md5(file_path)
-    print(f"Actual MD5: {actual_md5}")
-
-    expected_md5 = md5_checksums.get(selected_media_pack, "")
-    print(f"Expected MD5: {expected_md5}")
-
-    if expected_md5 == actual_md5:
-        status_var.set("Checksum verification successful.")
-    else:
-        status_var.set(f"Checksum verification failed. Expected: {expected_md5}, Actual: {actual_md5}. Exiting...")
-        root.after(2000, cleanup_temp_files, target_directory, console_folder, file_path, partially_downloaded_file)
+            browse_text.set("Download")
+            root.after(1000, clear_status)  # Schedule clearing status after 1000 milliseconds (1 second)
+            root.after(2000, reset_download_button_text)  # Reset the Download button text
+    except KeyError:
+        print(f"Error: Key not found for '{selected_config_pack}' in config_pack_names. Available keys: {list(config_pack_names.keys())}")
         return None
 
-    status_var.set("Extraction in progress...")
+def extract_config_packs(selected_config_pack, target_directory, status_var):
+    config_file_name = config_pack_names[selected_config_pack]
 
-    # Modify the extraction command based on the tool you are using
-    extraction_command = [r'C:\Program Files\7-Zip\7z.exe', 'x', '-aoa', f'-o{console_folder}', '-p{}'.format(global_password), file_path]
+    # Calculate the MD5 hash of the downloaded file
+    actual_md5 = calculate_file_md5(os.path.join(target_directory, config_file_name))
+    print(f"Actual MD5 from the downloaded file: {actual_md5}")
+
+    # Compare the MD5 values
+    expected_md5 = md5_checksums.get(config_file_name, "")
+    print(f"Expected MD5: {expected_md5}")
+
+    if expected_md5 != actual_md5:
+        status_var.set(f"MD5 values do not match for {config_file_name}. Extraction aborted.")
+        root.after(2000, clear_status)
+        root.after(2000, reset_download_button_text)  # Reset the Download button text
+        return None
+
+    # Specify the target folder for extraction
+    extraction_folder = target_directory
+
+    # Proceed with the extraction directly to the target directory
+    #extraction_command = [r'C:\Program Files\7-Zip\7z.exe', 'x', '-aoa', '-o{}'.format(extraction_folder), '-p{}'.format(global_password), os.path.join(target_directory, config_file_name)]
+    #extraction_command = [r'C:\Program Files\7-Zip\7z.exe', 'x', '-aoa', '-o{}'.format(extraction_folder), '-p{}'.format(global_password), os.path.join(target_directory, config_file_name)]
+    #extraction_command = [r'C:\Program Files\7-Zip\7z.exe', 'x', '-aoa', '-o{}'.format(extraction_folder), '-p{}'.format(global_password), os.path.join(target_directory, config_file_name), '-r']
+    #extraction_command = [r'C:\Program Files\7-Zip\7z.exe', 'x', '-aoa', '-o{}'.format(os.path.join(extraction_folder, config_file_name.split('.')[0])), '-p{}'.format(global_password), os.path.join(target_directory, config_file_name), '-r']
+    extraction_command = [r'C:\Program Files\7-Zip\7z.exe', 'x', '-aoa', '-o{}'.format(os.path.join(extraction_folder, config_file_name.split('.')[0].replace('-media', ''))), '-p{}'.format(global_password), os.path.join(target_directory, config_file_name), '-r']
+
 
     # Check if the extraction is successful
     if subprocess.run(extraction_command).returncode == 0:
-        target_directory_network = r"\\RECALBOX\share\roms\{}".format(console_name)
-        shutil.copytree(console_folder, target_directory_network, dirs_exist_ok=True)
-        status_var.set(f"{selected_media_pack} media pack copied to {target_directory_network}")
-        status_var.set("Download and copy completed.")
-        status_var.set("Deleting temporary files and folders...")
-        root.after(2000, cleanup_temp_files, target_directory, console_folder, file_path, partially_downloaded_file)
-    else:
-        status_var.set("Extraction failed. Temporary files are not deleted.")
-        root.after(2000, cleanup_temp_files, target_directory, console_folder, file_path, partially_downloaded_file)
+        # Define the source and target paths for the share folder
+        
+        target_directory_network = r"F:\Readycade\TEMP\share\roms\{}".format(selected_config_pack)
+        #target_directory_network = r"\\RECALBOX\share\roms\{}".format(console_name)
 
-    return console_folder
+        source_share_path = os.path.join(extraction_folder, config_file_name)
+        #target_directory_network = r"\\RECALBOX\share\roms\{}".format(console_name)
+
+        source_directory = os.path.join(extraction_folder, config_file_name.split('.')[0])
+        source_directory = source_directory.replace("-media", "")  # Remove "-media" from the directory name
+        source_directory = source_directory.replace(".7z", "")  # Remove ".7z" from the directory name
+
+        # Check if the source directory exists before attempting to copy
+        if os.path.exists(source_directory):
+            shutil.copytree(source_directory, target_directory_network, dirs_exist_ok=True)
+        else:
+            print(f"Source directory '{source_directory}' does not exist.")
 
 
-def cleanup_temp_files(target_directory, console_folder, file_path, partially_downloaded_file):
+
+        # Copy only the "share" folder to the network share
+        status_var.set(f"Copying Files to Readycade... Please Wait...")
+        print("Copying Files to Readycade... Please Wait...")
+        #source_directory = os.path.join(extraction_folder, config_file_name.replace(".7z", ""))
+        #source_directory = os.path.join(extraction_folder, config_file_name.replace("-media", "").replace(".7z", ""))
+        
+        #source_directory = os.path.join(extraction_folder, config_file_name.replace(".7z", ""))
+        #shutil.copytree(source_directory, target_directory_network, dirs_exist_ok=True)
+
+        #shutil.copytree(source_share_path, target_directory_network, dirs_exist_ok=True)
+        
+        status_message = f"{selected_config_pack} {config_file_name} folder copied to {target_directory_network}"
+        status_var.set(status_message)
+        time.sleep(2)  # Sleep for 2 seconds
+
+        status_message = "Files Copied Successfully!"
+        status_var.set(status_message)
+        time.sleep(2)  # Sleep for 2 seconds
+
+        print("Files Copied Successfully!")
+        
+        # Display a message box for successful installation
+        root.after(1000, clear_and_reset_status, "Media Pack Installed! Please Select Another or Exit the application.")
+        print("Media Pack Installed! Please Select Another or Exit the application.")
+
+        # Call cleanup_temp_files only after the successful copy
+        root.after(2000, cleanup_temp_files, target_directory, os.path.join(target_directory, config_file_name))
+        print("Cleaning Up Temporary Files and Exiting...")
+
+
+
+def cleanup_temp_files(target_directory, file_path):
     # Wait for a short time to ensure the file is not in use
     time.sleep(1)
 
@@ -221,94 +257,22 @@ def cleanup_temp_files(target_directory, console_folder, file_path, partially_do
             except Exception as e:
                 print(f"Error deleting file: {e}")
 
-    # Check if the folder exists and is not in use
-    if os.path.exists(os.path.join(target_directory, console_folder)):
-        try:
-            shutil.rmtree(os.path.join(target_directory, console_folder), ignore_errors=True)
-        except Exception as e:
-            print(f"Error deleting folder: {e}")
+    # Delete the entire target directory
+    try:
+        shutil.rmtree(target_directory)
+        status_var.set("Temporary files deleted.")
+    except Exception as e:
+        print(f"Error deleting temporary files: {e}")
+        status_var.set("Error deleting temporary files.")
 
-    status_var.set("Temporary files deleted.")
     root.after(2000, clear_status)
+
+
+
 
 def clear_status():
     status_var.set("")  # Clear the status after 2000 milliseconds (2 seconds)
     progress_var.set(0)  # Reset the progress bar
-
-
-def calculate_md5(file_path):
-    md5 = hashlib.md5()
-    with open(file_path, 'rb') as f:
-        for chunk in iter(lambda: f.read(4096), b''):
-            md5.update(chunk)
-    return md5.hexdigest()
-
-def open_file():
-    browse_text.set("Downloading...")
-    download_thread_instance = threading.Thread(target=download_thread)
-    download_thread_instance.start()
-
-def download_thread():
-    global download_canceled
-    selected_media_pack = media_pack_combobox.get()
-
-    if selected_media_pack:
-        base_url = "https://forum.readycade.com/readycade_media/"
-        target_directory = os.path.expandvars(r"%APPDATA%\readycade\mediapacks")
-
-        # Path to the downloaded media pack file
-        media_file_name = selected_media_pack
-        downloaded_media_path = os.path.join(target_directory, media_file_name)
-
-        # URL for the MD5 file on the website
-        md5_file_url = base_url + media_file_name + '.md5'
-
-        try:
-            # Fetch the content of the .md5 file from the server
-            md5_response = requests.get(md5_file_url)
-            md5_response.raise_for_status()
-            actual_md5_line = md5_response.text.strip().split('\n')[0]  # Get the first line
-            actual_md5 = actual_md5_line.split()[0]  # Extract only the hash
-            print(f"Actual MD5 from .md5 file on the website: {actual_md5}")
-
-            # Compare the MD5 values
-            expected_md5 = md5_checksums.get(media_file_name, "")
-            print(f"Expected MD5: {expected_md5}")
-
-            if expected_md5 != actual_md5:
-                print("MD5 values do not match. Exiting...")
-                status_var.set(f"MD5 values do not match for {media_file_name}. Exiting...")
-                root.after(2000, clear_status)
-                root.after(2000, reset_download_button_text)  # Reset the Download button text
-                return None
-
-        except requests.exceptions.RequestException as e:
-            print(f"Error fetching .md5 file from {md5_file_url}: {e}")
-            status_var.set(f"Error fetching .md5 file from {md5_file_url}. Exiting...")
-            root.after(2000, clear_status)
-            root.after(2000, reset_download_button_text)  # Reset the Download button text
-            return None
-
-        # Continue with the rest of the download process
-        console_folder = download_media_pack(base_url, target_directory, selected_media_pack, md5_checksums, status_var, progress_var)
-
-        if console_folder:
-            browse_text.set("Download")
-            messagebox.showinfo("Media Pack Installed", "Media Pack Installed! Please Select Another or Exit the application.")
-            root.after(1000, clear_status)  # Schedule clearing status after 1000 milliseconds (1 second)
-        else:
-            browse_text.set("Download failed.")
-            root.after(1000, clear_status)  # Schedule clearing status after 1000 milliseconds (1 second)
-            root.after(2000, reset_download_button_text)  # Reset the Download button text
-    else:
-        browse_text.set("Download failed.")
-        root.after(1000, clear_status)  # Schedule clearing status after 1000 milliseconds (1 second)
-        root.after(2000, reset_download_button_text)  # Reset the Download button text
-
-def reset_download_button_text():
-    browse_text.set("Download")
-
-
 
 def open_file():
     global download_canceled
@@ -325,50 +289,115 @@ def open_file():
     # Disable the cancel button
     cancel_btn['state'] = 'normal'
 
+def download_thread():
+    global download_canceled
+    selected_config_pack = config_pack_combobox.get()
+
+    if selected_config_pack:
+        target_directory = os.path.expandvars(r"%APPDATA%\readycade\mediapacks")
+        config_file_name = config_pack_names[selected_config_pack]
+
+        # Ensure the target directory exists
+        os.makedirs(target_directory, exist_ok=True)
+
+        # URL for the config pack file on the website
+        config_pack_file_url = base_url + config_file_name
+
+        try:
+            # Fetch the content of the .md5 file from the server
+            md5_file_url = config_pack_file_url + '.md5'
+            md5_response = requests.get(md5_file_url)
+            md5_response.raise_for_status()
+            actual_md5_line = md5_response.text.strip().split('\n')[0]  # Get the first line
+            actual_md5 = actual_md5_line.split()[0]  # Extract only the hash
+            print(f"Actual MD5 from .md5 file on the website: {actual_md5}")
+
+            # Compare the MD5 values
+            expected_md5 = md5_checksums.get(config_file_name, "")
+            print(f"Expected MD5: {expected_md5}")
+
+            if expected_md5 != actual_md5:
+                print("MD5 values do not match. Exiting...")
+                status_var.set(f"MD5 values do not match for {config_file_name}. Exiting...")
+                root.after(2000, clear_and_reset_status)
+                return None
+
+            # Download the config pack file
+            downloaded_file = download_file(config_pack_file_url, target_directory, status_var, progress_var)
+
+            # Check if the downloaded file is None (indicating an error)
+            if downloaded_file is None:
+                return None
+
+            # Compare the MD5 values
+            if expected_md5 != actual_md5:
+                print("MD5 values do not match. Exiting...")
+                status_var.set(f"MD5 values do not match for {config_file_name}. Exiting...")
+                root.after(2000, clear_and_reset_status)
+            else:
+                # Call the extract_config_packs function after download
+                extraction_result = extract_config_packs(selected_config_pack, target_directory, status_var)
+
+
+                if extraction_result:
+                    message = "Media Pack Installed! Please Select Another or Exit the application."
+                    browse_text.set("Download")
+                    root.after(1000, clear_and_reset_status, message)  # Schedule clearing status after 1000 milliseconds (1 second)
+                else:
+                    browse_text.set("Download")
+                root.after(1000, clear_and_reset_status)  # Schedule clearing status after 1000 milliseconds (1 second)
+
+        except requests.exceptions.RequestException as e:
+            print(f"Error during download: {e}")
+            status_var.set(f"Error during download. Exiting...")
+            root.after(2000, clear_and_reset_status)
+
+def clear_and_reset_status(message=None):
+    if message:
+        messagebox.showinfo("Config Pack Installed", message)
+
+    clear_status()
+    reset_download_button_text()
+
+
+
+
+def reset_download_button_text():
+    browse_btn['state'] = 'normal'
+    browse_text.set("Download")
+    cancel_btn['state'] = 'disabled'
+
 def cancel_download():
     global download_canceled
     download_canceled = True
 
     # Clean up downloaded files and folders
-    selected_media_pack = media_pack_combobox.get()
-    console_name = os.path.splitext(selected_media_pack)[0].replace('-media', '')
+    selected_config_pack = config_pack_combobox.get()
     target_directory = os.path.expandvars(r"%APPDATA%\readycade\mediapacks")
-    file_path = os.path.join(target_directory, selected_media_pack)
-    console_folder = os.path.join(target_directory, console_name)
-    partially_downloaded_file = os.path.join(target_directory, f"{console_name}-media.7z")
+    file_path = os.path.join(target_directory, config_pack_names[selected_config_pack])
 
-    # Attempt to delete the downloaded file, the extracted folder, and the partially downloaded file
+    # Attempt to delete the downloaded file
     try:
         if os.path.exists(file_path):
             os.remove(file_path)
 
-        if os.path.exists(console_folder):
-            shutil.rmtree(console_folder, ignore_errors=True)
-
-        if os.path.exists(partially_downloaded_file):
-            os.remove(partially_downloaded_file)
-
-        status_var.set("Download canceled. Temporary files deleted.")
+        status_var.set("Download canceled. Temporary file deleted.")
         root.after(2000, clear_status)
+        root.after(2000, reset_download_button_delayed)  # Display "Download failed" for 2 seconds
     except Exception as e:
         status_var.set(f"Error: {str(e)}")
         root.after(2000, clear_status)
+        root.after(2000, reset_download_button_delayed)  # Display "Download failed" for 2 seconds
 
-    # Re-enable the download button
+
+def reset_download_button_delayed():
     browse_btn['state'] = 'normal'
-
-    # Disable the cancel button
+    browse_text.set("Download")
     cancel_btn['state'] = 'disabled'
 
 
-
-def clear_status():
-    status_var.set("")  # Clear the status after 1000 milliseconds (1 second)
-    progress_var.set(0)  # Reset the progress bar
-
-
 root = tk.Tk()
-root.title("Readycade")
+root.title("Readycade™")
 
 # Remove the TK icon
 root.iconbitmap(default="icon.ico")
@@ -386,92 +415,92 @@ logo_label.image = logo
 logo_label.grid(column=1, row=0)
 
 # Instructions
-Instructions = tk.Label(root, text="Select a media pack to download:", font="open-sans")
-Instructions.grid(columnspan=3, column=0, row=1)
+instructions = tk.Label(root, text="Select a media pack to download:", font="open-sans")
+instructions.grid(columnspan=3, column=0, row=1)
 
-# Media pack selection dropdown
-media_packs = [
-    "64dd-media.7z",
-    "amiga600-media.7z",
-    "amiga1200-media.7z",
-    "amstradcpc-media.7z",
-    "apple2-media.7z",
-    "apple2gs-media.7z",
-    "arduboy-media.7z",
-    "atari800-media.7z",
-    "atari2600-media.7z",
-    "atari5200-media.7z",
-    "atari7800-media.7z",
-    "atarist-media.7z",
-    "atomiswave-media.7z",
-    "bbcmicro-media.7z",
-    "bk-media.7z",
-    "c64-media.7z",
-    "channelf-media.7z",
-    "colecovision-media.7z",
-    "daphne-media.7z",
-    "dos-media.7z",
-    "fds-media.7z",
-    "gamegear-media.7z",
-    "gba-media.7z",
-    "gbc-media.7z",
-    "gb-media.7z",
-    "gbw-media.7z",
-    "gx4000-media.7z",
-    "intellivision-media.7z",
-    "jaguar-media.7z",
-    "lowresnx-media.7z",
-    "lutro-media.7z",
-    "mastersystem-media.7z",
-    "megadrive-media.7z",
-    "model3-media.7z",
-    "msx1-media.7z",
-    "msx2-media.7z",
-    "msxturbor-media.7z",
-    "multivision-media.7z",
-    "n64-media.7z",
-    "naomigd-media.7z",
-    "naomi-media.7z",
-    "neogeocd-media.7z",
-    "neogeo-media.7z",
-    "nes-media.7z",
-    "ngpc-media.7z",
-    "ngp-media.7z",
-    "o2em-media.7z",
-    "oricatmos-media.7z",
-    "pcenginecd-media.7z",
-    "pcengine-media.7z",
-    "pcfx-media.7z",
-    "pcv2-media.7z",
-    "pokemini-media.7z",
-    "ports-media.7z",
-    "samcoupe-media.7z",
-    "satellaview-media.7z",
-    "scv-media.7z",
-    "sega32x-media.7z",
-    "sg1000-media.7z",
-    "snes-media.7z",
-    "solarus-media.7z",
-    "spectravideo-media.7z",
-    "sufami-media.7z",
-    "supergrafx-media.7z",
-    "supervision-media.7z",
-    "thomson-media.7z",
-    "tic80-media.7z",
-    "trs80coco-media.7z",
-    "uzebox-media.7z",
-    "vectrex-media.7z",
-    "vic20-media.7z",
-    "videopacplus-media.7z",
-    "virtualboy-media.7z",
-    "wasm4-media.7z",
-    "wswanc-media.7z",
-    "wswan-media.7z",
-    "x1-media.7z",
-    "x68000-media.7z",
-    "zx81-media.7z",
-    "zxspectrum-media.7z"
-]
+# Dictionary to map user-friendly names to actual file names
+config_pack_names = {
+    "64dd": "64dd-media.7z",
+    "amiga600": "amiga600-media.7z",
+    "amiga1200": "amiga1200-media.7z",
+    "amstradcpc": "amstradcpc-media.7z",
+    "apple2": "apple2-media.7z",
+    "apple2gs": "apple2gs-media.7z",
+    "arduboy": "arduboy-media.7z",
+    "atari800": "atari800-media.7z",
+    "atari2600": "atari2600-media.7z",
+    "atari5200": "atari5200-media.7z",
+    "atari7800": "atari7800-media.7z",
+    "atarist": "atarist-media.7z",
+    "atomiswave": "atomiswave-media.7z",
+    "bbcmicro": "bbcmicro-media.7z",
+    "bk": "bk-media.7z",
+    "c64": "c64-media.7z",
+    "channelf": "channelf-media.7z",
+    "colecovision": "colecovision-media.7z",
+    "daphne": "daphne-media.7z",
+    "dos": "dos-media.7z",
+    "fds": "fds-media.7z",
+    "gamegear": "gamegear-media.7z",
+    "gba": "gba-media.7z",
+    "gbc": "gbc-media.7z",
+    "gb": "gb-media.7z",
+    "gw": "gw-media.7z",
+    "gx4000": "gx4000-media.7z",
+    "intellivision": "intellivision-media.7z",
+    "jaguar": "jaguar-media.7z",
+    "lowresnx": "lowresnx-media.7z",
+    "lutro": "lutro-media.7z",
+    "mastersystem": "mastersystem-media.7z",
+    "megadrive": "megadrive-media.7z",
+    "model3": "model3-media.7z",
+    "msx1": "msx1-media.7z",
+    "msx2": "msx2-media.7z",
+    "msxturbor": "msxturbor-media.7z",
+    "multivision": "multivision-media.7z",
+    "n64": "n64-media.7z",
+    "naomigd": "naomigd-media.7z",
+    "naomi": "naomi-media.7z",
+    "neogeocd": "neogeocd-media.7z",
+    "neogeo": "neogeo-media.7z",
+    "nes": "nes-media.7z",
+    "ngpc": "ngpc-media.7z",
+    "ngp": "ngp-media.7z",
+    "o2em": "o2em-media.7z",
+    "oricatmos": "oricatmos-media.7z",
+    "pcenginecd": "pcenginecd-media.7z",
+    "pcengine": "pcengine-media.7z",
+    "pcfx": "pcfx-media.7z",
+    "pcv2": "pcv2-media.7z",
+    "pokemini": "pokemini-media.7z",
+    "ports": "ports-media.7z",
+    "samcoupe": "samcoupe-media.7z",
+    "satellaview": "satellaview-media.7z",
+    "scv": "scv-media.7z",
+    "sega32x": "sega32x-media.7z",
+    "sg1000": "sg1000-media.7z",
+    "snes": "snes-media.7z",
+    "solarus": "solarus-media.7z",
+    "spectravideo": "spectravideo-media.7z",
+    "sufami": "sufami-media.7z",
+    "supergrafx": "supergrafx-media.7z",
+    "supervision": "supervision-media.7z",
+    "thomson": "thomson-media.7z",
+    "tic80": "tic80-media.7z",
+    "trs80coco": "trs80coco-media.7z",
+    "uzebox": "uzebox-media.7z",
+    "vectrex": "vectrex-media.7z",
+    "vic20": "vic20-media.7z",
+    "videopacplus": "videopacplus-media.7z",
+    "virtualboy": "virtualboy-media.7z",
+    "wasm4": "wasm4-media.7z",
+    "wswanc": "wswanc-media.7z",
+    "wswan": "wswan-media.7z",
+    "x1": "x1-media.7z",
+    "x68000": "x68000-media.7z",
+    "zx81": "zx81-media.7z",
+    "zxspectrum": "zxspectrum-media.7z"
+}
 
 md5_checksums = {
     "64dd-media.7z": "02633527841f5effa49552d15a75f06",
@@ -553,12 +582,15 @@ md5_checksums = {
     "x1-media.7z": "9975f3b17dba0c642b84d0ef18b3515d",
     "x68000-media.7z": "6905d8cc5109cc4d131e30a0b746accf",
     "zx81-media.7z": "a79d7847f0bac3a5a8eab17791ed6610",
-    "zxspectrum-media.7z": "913a3ac9a8ee085709ebeaa7ebf02942"     
+    "zxspectrum-media.7z": "913a3ac9a8ee085709ebeaa7ebf02942" 
 }
 
-media_pack_combobox = ttk.Combobox(root, values=media_packs)
-media_pack_combobox.grid(column=1, row=2)
-media_pack_combobox.set("Select a media pack")
+# Config pack selection dropdown
+config_packs = list(config_pack_names.keys())
+
+config_pack_combobox = ttk.Combobox(root, values=config_packs)
+config_pack_combobox.grid(column=1, row=2)
+config_pack_combobox.set("Select a media pack")
 
 canvas = tk.Canvas(root, width=600, height=100)
 canvas.grid(columnspan=3)
@@ -584,3 +616,4 @@ cancel_btn = tk.Button(root, text="Cancel", command=cancel_download, font="open-
 cancel_btn.grid(column=1, row=6)
 
 root.mainloop()
+
