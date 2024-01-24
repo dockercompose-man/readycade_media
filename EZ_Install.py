@@ -1,3 +1,23 @@
+"""
+*************************************************************************
+ * 
+ * READYCADE CONFIDENTIAL
+ * __________________
+ * 
+ *  [2024] Readycade Incorporated 
+ *  All Rights Reserved.
+ * 
+ * NOTICE:  All information contained herein is, and remains
+ * the property of Readycade Incorporated and its suppliers,
+ * if any.  The intellectual and technical concepts contained
+ * herein are proprietary to Readycade Incorporated
+ * and its suppliers and may be covered by U.S. and Foreign Patents,
+ * patents in process, and are protected by trade secret or copyright law.
+ * Dissemination of this information or reproduction of this material
+ * is strictly forbidden unless prior written permission is obtained
+ * from Readycade Incorporated.
+"""
+
 import tkinter as tk
 from tkinter import ttk, messagebox, simpledialog
 from PIL import Image, ImageTk
@@ -468,7 +488,7 @@ config_pack_names = {
 }
 
 md5_checksums = {
-    "readycade_configs.7z": "d3f90351e3321ee45a36d8c87e4cb7f",
+    "readycade_configs.7z": "4d3f90351e3321ee45a36d8c87e4cb7f",
     "readycade_configs-interger.7z": "c444b3d6ad3ab8706e507e02a71cb43b"
 }
 
