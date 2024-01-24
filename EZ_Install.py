@@ -65,7 +65,7 @@ def download_file(url, target_directory, status_var, progress_var, max_retries=3
                         downloaded_size += len(chunk)
                         bar.update(len(chunk))
                         progress_var.set((downloaded_size / max(1, total_size_in_bytes)) * 100)
-                        status_var.set(f"Download in Progress for {display_filename}...")
+                        status_var.set(f"Download in Progress for {display_filename} Please Wait...")
                         root.update_idletasks()
 
                 return local_filename
@@ -85,11 +85,6 @@ def download_file(url, target_directory, status_var, progress_var, max_retries=3
     root.after(2000, clear_status)
     root.after(2000, reset_download_button_delayed)  # Reset the Download button text
     return None
-
-
-
-
-
 
 
 def calculate_md5_from_file_url(file_url):
@@ -132,11 +127,15 @@ def download_config_pack(base_url, target_directory, selected_config_pack, md5_c
             return None
 
         # Proceed with the rest of the download process
-        console_folder = download_config_pack(base_url, target_directory, selected_config_pack, md5_checksums, status_var, progress_var)
+        console_folder = download_file(config_pack_file_url, target_directory, status_var, progress_var)
+
+            # Check if the downloaded file is None (indicating an error)
+        if console_folder is None:
+            return None
 
         if console_folder:
             browse_text.set("Download")
-            messagebox.showinfo("Config Pack Installed", "Config Pack Installed! Please Select Another or Exit the application.")
+            messagebox.showinfo("Config Pack Installed", "Config Pack Installed! Please Reboot Your Readycade Now.")
             root.after(1000, clear_status)  # Schedule clearing status after 1000 milliseconds (1 second)
         else:
             browse_text.set("Download failed.")
@@ -146,17 +145,55 @@ def download_config_pack(base_url, target_directory, selected_config_pack, md5_c
         print(f"Error: Key not found for '{selected_config_pack}' in config_pack_names. Available keys: {list(config_pack_names.keys())}")
         return None
 
+def extract_config_packs(selected_config_pack, target_directory, status_var):
+    config_file_name = config_pack_names[selected_config_pack]
 
-# Dictionary to map user-friendly names to actual file names
-config_pack_names = {
-    "Normal": "readycade_configs.7z",
-    "Interger Scaled": "readycade_configs-interger.7z"
-}
+    # Calculate the MD5 hash of the downloaded file
+    actual_md5 = calculate_file_md5(os.path.join(target_directory, config_file_name))
+    print(f"Actual MD5 from the downloaded file: {actual_md5}")
 
-md5_checksums = {
-    "readycade_configs.7z": "d3f90351e3321ee45a36d8c87e4cb7f",
-    "readycade_configs-interger.7z": "c444b3d6ad3ab8706e507e02a71cb43b"
-}
+    # Compare the MD5 values
+    expected_md5 = md5_checksums.get(config_file_name, "")
+    print(f"Expected MD5: {expected_md5}")
+
+    if expected_md5 != actual_md5:
+        status_var.set(f"MD5 values do not match for {config_file_name}. Extraction aborted.")
+        root.after(2000, clear_status)
+        root.after(2000, reset_download_button_text)  # Reset the Download button text
+        return None
+
+    # Specify the target folder for extraction
+    extraction_folder = target_directory
+
+    # Proceed with the extraction directly to the target directory
+    extraction_command = [r'C:\Program Files\7-Zip\7z.exe', 'x', '-aoa', '-o{}'.format(extraction_folder), '-p{}'.format(global_password), os.path.join(target_directory, config_file_name)]
+
+    # Check if the extraction is successful
+    if subprocess.run(extraction_command).returncode == 0:
+        # Define the source and target paths for the share folder
+        source_share_path = os.path.join(extraction_folder, "share")
+        target_directory_network = r"F:\Readycade\TEMP"
+        #target_directory_network = r"\\RECALBOX\share"
+
+        # Copy only the "share" folder to the network share
+        status_var.set(f"Copying Files to Readycade... Please Wait...")
+        print("Copying Files to Readycade... Please Wait...")
+        shutil.copytree(source_share_path, target_directory_network, dirs_exist_ok=True)
+
+        status_message = f"{selected_config_pack} config pack 'share' folder copied to {target_directory_network}"
+        status_var.set(status_message)
+
+        print("Files Copied Successfully!")
+        
+        # Display a message box for successful installation
+        root.after(1000, clear_and_reset_status, "Config Pack Installed! Please Select Another or Exit the application.")
+        print("Config Pack Installed! Please Select Another or Exit the application.")
+
+        # Call cleanup_temp_files only after the successful copy
+        root.after(2000, cleanup_temp_files, target_directory, os.path.join(target_directory, config_file_name))
+        print("Cleaning Up Temporary Files and Exiting...")
+
+
 
 def cleanup_temp_files(target_directory, file_path):
     # Wait for a short time to ensure the file is not in use
@@ -174,8 +211,18 @@ def cleanup_temp_files(target_directory, file_path):
             except Exception as e:
                 print(f"Error deleting file: {e}")
 
-    status_var.set("Temporary file deleted.")
+    # Delete the entire target directory
+    try:
+        shutil.rmtree(target_directory)
+        status_var.set("Temporary files deleted.")
+    except Exception as e:
+        print(f"Error deleting temporary files: {e}")
+        status_var.set("Error deleting temporary files.")
+
     root.after(2000, clear_status)
+
+
+
 
 def clear_status():
     status_var.set("")  # Clear the status after 2000 milliseconds (2 seconds)
@@ -204,6 +251,9 @@ def download_thread():
         target_directory = os.path.expandvars(r"%APPDATA%\readycade\configpacks")
         config_file_name = config_pack_names[selected_config_pack]
 
+        # Ensure the target directory exists
+        os.makedirs(target_directory, exist_ok=True)
+
         # URL for the config pack file on the website
         config_pack_file_url = base_url + config_file_name
 
@@ -223,8 +273,7 @@ def download_thread():
             if expected_md5 != actual_md5:
                 print("MD5 values do not match. Exiting...")
                 status_var.set(f"MD5 values do not match for {config_file_name}. Exiting...")
-                root.after(2000, clear_status)
-                root.after(2000, reset_download_button_text)  # Reset the Download button text
+                root.after(2000, clear_and_reset_status)
                 return None
 
             # Download the config pack file
@@ -234,33 +283,35 @@ def download_thread():
             if downloaded_file is None:
                 return None
 
-            # Calculate the MD5 hash of the downloaded file
-            actual_md5 = calculate_file_md5(downloaded_file)
-            print(f"Actual MD5 from the downloaded file: {actual_md5}")
-
             # Compare the MD5 values
             if expected_md5 != actual_md5:
                 print("MD5 values do not match. Exiting...")
                 status_var.set(f"MD5 values do not match for {config_file_name}. Exiting...")
-                root.after(2000, clear_status)
-                root.after(2000, reset_download_button_text)  # Reset the Download button text
+                root.after(2000, clear_and_reset_status)
             else:
-                browse_text.set("Download")
-                messagebox.showinfo("Config Pack Installed", "Config Pack Installed! Please Select Another or Exit the application.")
-                root.after(1000, clear_status)  # Schedule clearing status after 1000 milliseconds (1 second)
+                # Call the extract_config_packs function after download
+                extraction_result = extract_config_packs(selected_config_pack, target_directory, status_var)
+
+
+                if extraction_result:
+                    message = "Config Pack Installed! Please Select Another or Exit the application."
+                    browse_text.set("Download")
+                    root.after(1000, clear_and_reset_status, message)  # Schedule clearing status after 1000 milliseconds (1 second)
+                else:
+                    browse_text.set("Download failed.")
+                root.after(1000, clear_and_reset_status)  # Schedule clearing status after 1000 milliseconds (1 second)
+
         except requests.exceptions.RequestException as e:
             print(f"Error during download: {e}")
             status_var.set(f"Error during download. Exiting...")
-            root.after(2000, clear_status)
-            root.after(2000, reset_download_button_text)  # Reset the Download button text
-    else:
-        browse_text.set("Download failed.")
-        root.after(1000, clear_status)  # Schedule clearing status after 1000 milliseconds (1 second)
-        root.after(2000, reset_download_button_text)  # Reset the Download button text
+            root.after(2000, clear_and_reset_status)
 
+def clear_and_reset_status(message=None):
+    if message:
+        messagebox.showinfo("Config Pack Installed", message)
 
-
-
+    clear_status()
+    reset_download_button_text()
 
 
 
@@ -292,15 +343,15 @@ def cancel_download():
         root.after(2000, clear_status)
         root.after(2000, reset_download_button_delayed)  # Display "Download failed" for 2 seconds
 
+
 def reset_download_button_delayed():
     browse_btn['state'] = 'normal'
     browse_text.set("Download")
     cancel_btn['state'] = 'disabled'
 
-# ... (rest of your existing code)
 
 root = tk.Tk()
-root.title("Readycade")
+root.title("Readycade™")
 
 # Remove the TK icon
 root.iconbitmap(default="icon.ico")
