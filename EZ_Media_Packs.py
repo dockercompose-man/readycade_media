@@ -42,7 +42,7 @@ download_canceled = False
 
 global_password = "uXR9mtjKxtHHGuQ7qUL6"
 
-def download_file(url, target_directory, status_var, progress_var, max_retries=3):
+def download_file(url, target_directory, status_var, progress_var, max_retries=5):
     local_filename = os.path.join(target_directory, os.path.basename(url))
     display_filename = os.path.basename(local_filename)
     block_size = 8192  # 8 Kibibytes
@@ -208,18 +208,9 @@ def extract_config_packs(selected_config_pack, target_directory, status_var):
         else:
             print(f"Source directory '{source_directory}' does not exist.")
 
-
-
         # Copy only the "share" folder to the network share
         status_var.set(f"Copying Files to Readycade... Please Wait...")
         print("Copying Files to Readycade... Please Wait...")
-        #source_directory = os.path.join(extraction_folder, config_file_name.replace(".7z", ""))
-        #source_directory = os.path.join(extraction_folder, config_file_name.replace("-media", "").replace(".7z", ""))
-        
-        #source_directory = os.path.join(extraction_folder, config_file_name.replace(".7z", ""))
-        #shutil.copytree(source_directory, target_directory_network, dirs_exist_ok=True)
-
-        #shutil.copytree(source_share_path, target_directory_network, dirs_exist_ok=True)
         
         status_message = f"{selected_config_pack} {config_file_name} folder copied to {target_directory_network}"
         status_var.set(status_message)
@@ -266,8 +257,6 @@ def cleanup_temp_files(target_directory, file_path):
         status_var.set("Error deleting temporary files.")
 
     root.after(2000, clear_status)
-
-
 
 
 def clear_status():
@@ -499,11 +488,12 @@ config_pack_names = {
     "x1": "x1-media.7z",
     "x68000": "x68000-media.7z",
     "zx81": "zx81-media.7z",
-    "zxspectrum": "zxspectrum-media.7z"
+    "zxspectrum images": "zxspectrum-images.7z",
+    "zxspectrum videos": "zxspectrum-videos.7z"
 }
 
 md5_checksums = {
-    "64dd-media.7z": "02633527841f5effa49552d15a75f06",
+    "64dd-media.7z": "702633527841f5effa49552d15a75f06",
     "amiga600-media.7z": "ec0ee2c4462d58dcef0270d59fb879e4",
     "amiga1200-media.7z": "0b21b5401db62c1e32cd61a230fd8555",
     "amstradcpc-media.7z": "17d98adf4e1ae1c2e95c0e3b19643d77",
@@ -582,7 +572,8 @@ md5_checksums = {
     "x1-media.7z": "9975f3b17dba0c642b84d0ef18b3515d",
     "x68000-media.7z": "6905d8cc5109cc4d131e30a0b746accf",
     "zx81-media.7z": "a79d7847f0bac3a5a8eab17791ed6610",
-    "zxspectrum-media.7z": "913a3ac9a8ee085709ebeaa7ebf02942" 
+    "zxspectrum-images.7z": "8d22052f490c6c44a6f3782a93405030",
+    "zxspectrum-videos.7z": "3139400f3dad389593ff35ca52df4edf"
 }
 
 # Config pack selection dropdown
