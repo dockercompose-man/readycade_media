@@ -15,9 +15,9 @@
 * from Readycade Incorporated.
 **************************************************************************
 * Author Michael Cabral 2024
-* Title: EZ_Media_Packs
+* Title: EZ_Install
 * Proprietary License
-* Description: Downloads and Installs Media Packs (Images, Videos) to your Readycade
+* Description: Downloads and Installs Readycade Configuration Packs to your Readycade
 """
 
 import tkinter as tk
