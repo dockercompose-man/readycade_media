@@ -1,21 +1,23 @@
 """
-*************************************************************************
- * 
- * READYCADE CONFIDENTIAL
- * __________________
- * 
- *  [2024] Readycade Incorporated 
- *  All Rights Reserved.
- * 
- * NOTICE:  All information contained herein is, and remains
- * the property of Readycade Incorporated and its suppliers,
- * if any.  The intellectual and technical concepts contained
- * herein are proprietary to Readycade Incorporated
- * and its suppliers and may be covered by U.S. and Foreign Patents,
- * patents in process, and are protected by trade secret or copyright law.
- * Dissemination of this information or reproduction of this material
- * is strictly forbidden unless prior written permission is obtained
- * from Readycade Incorporated.
+************************************************************************** 
+* READYCADE CONFIDENTIAL
+* __________________
+* 
+*  [2024] Readycade Incorporated 
+*  All Rights Reserved.
+* 
+* NOTICE:  All information contained herein is, and remains* the property of Readycade Incorporated and its suppliers,
+* if any.  The intellectual and technical concepts contained* herein are proprietary to Readycade Incorporated
+* and its suppliers and may be covered by U.S. and Foreign Patents,
+* patents in process, and are protected by trade secret or copyright law.
+* Dissemination of this information or reproduction of this material
+* is strictly forbidden unless prior written permission is obtained
+* from Readycade Incorporated.
+**************************************************************************
+* Author Michael Cabral 2024
+* Title: EZ_Media_Packs
+* Proprietary License
+* Description: Downloads and Installs Media Packs (Images, Videos) to your Readycade
 """
 
 import tkinter as tk
@@ -26,6 +28,7 @@ import requests
 from requests.exceptions import RequestException
 import hashlib
 from http.client import IncompleteRead
+import platform
 import subprocess
 import shutil
 import sys
@@ -41,6 +44,17 @@ auth_url = "https://forum.readycade.com/auth.php"
 download_canceled = False
 
 global_password = "o2M8K2zjs67ysJR8jWy7"
+
+def check_windows():
+    if platform.system() != 'Windows':
+        messagebox.showerror("Error", "This script is intended to run on Windows only. Exiting.")
+        sys.exit(1)
+
+# Call the function to check the platform
+check_windows()
+
+# If the platform check passed, continue with the rest of your code
+print("Script is running on Windows. Continue execution.")
 
 # CHECK NETWORK SHARE
 print("Checking if the network share is available...")

@@ -1,21 +1,23 @@
 """
-*************************************************************************
- * 
- * READYCADE CONFIDENTIAL
- * __________________
- * 
- *  [2024] Readycade Incorporated 
- *  All Rights Reserved.
- * 
- * NOTICE:  All information contained herein is, and remains
- * the property of Readycade Incorporated and its suppliers,
- * if any.  The intellectual and technical concepts contained
- * herein are proprietary to Readycade Incorporated
- * and its suppliers and may be covered by U.S. and Foreign Patents,
- * patents in process, and are protected by trade secret or copyright law.
- * Dissemination of this information or reproduction of this material
- * is strictly forbidden unless prior written permission is obtained
- * from Readycade Incorporated.
+************************************************************************** 
+* READYCADE CONFIDENTIAL
+* __________________
+* 
+*  [2024] Readycade Incorporated 
+*  All Rights Reserved.
+* 
+* NOTICE:  All information contained herein is, and remains* the property of Readycade Incorporated and its suppliers,
+* if any.  The intellectual and technical concepts contained* herein are proprietary to Readycade Incorporated
+* and its suppliers and may be covered by U.S. and Foreign Patents,
+* patents in process, and are protected by trade secret or copyright law.
+* Dissemination of this information or reproduction of this material
+* is strictly forbidden unless prior written permission is obtained
+* from Readycade Incorporated.
+**************************************************************************
+* Author Michael Cabral 2024
+* Title: EZ_Media_Packs
+* Proprietary License
+* Description: Downloads and Installs Media Packs (Images, Videos) to your Readycade
 """
 
 import tkinter as tk
@@ -26,6 +28,7 @@ import requests
 from requests.exceptions import RequestException
 import hashlib
 from http.client import IncompleteRead
+import platform
 import subprocess
 import shutil
 import sys
@@ -42,7 +45,108 @@ download_canceled = False
 
 global_password = "uXR9mtjKxtHHGuQ7qUL6"
 
-def download_file(url, target_directory, status_var, progress_var, max_retries=3):
+def check_windows():
+    if platform.system() != 'Windows':
+        messagebox.showerror("Error", "This script is intended to run on Windows only. Exiting.")
+        sys.exit(1)
+
+# Call the function to check the platform
+check_windows()
+
+# If the platform check passed, continue with the rest of your code
+print("Script is running on Windows. Continue execution.")
+
+# CHECK NETWORK SHARE
+print("Checking if the network share is available...")
+
+try:
+    subprocess.run(["ping", "-n", "1", "RECALBOX"], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    print("Network share found.")
+except subprocess.CalledProcessError:
+    print("Error: Could not connect to the network share \\RECALBOX.")
+    print("Please make sure you are connected to the network and try again.")
+    
+    # Show a message box
+    root = tk.Tk()
+    root.withdraw()  # Hide the main window
+    messagebox.showerror("Error", "Network Share not found. Please make sure you are connected to the network and try again.")
+    sys.exit()
+
+print()
+
+def get_credentials():
+    db_username = simpledialog.askstring("Authentication", "Enter your username:")
+    db_password = simpledialog.askstring("Authentication", "Enter your password:", show='*')
+
+    if db_username and db_password:
+        print(f"Username: {db_username}, Password: {db_password}")
+    else:
+        print("Authentication canceled.")
+        sys.exit()
+
+# Get username and password from user input
+db_username = simpledialog.askstring("Authentication", "Enter your username:")
+db_password = simpledialog.askstring("Authentication", "Enter your password:", show='*')
+
+# AUTHENTICATION
+# Perform authentication by sending a POST request to auth.php using the captured credentials
+data = {"dbUsername": db_username, "dbPassword": db_password}
+response = requests.post(auth_url, data=data)
+
+# Check the authentication result
+auth_result = response.text.strip()
+
+if auth_result != "Authenticated":
+    print("Authentication failed. Exiting script...")
+    sys.exit()
+
+print("Authentication successful. Proceeding with installation...")
+
+# Define the installation directory for 7-Zip
+installDir = "C:\\Program Files\\7-Zip"
+
+# Define the 7-Zip version you want to download
+version = "2301"
+
+# Define the download URL for the specified version
+downloadURL = f"https://www.7-zip.org/a/7z{version}-x64.exe"
+
+# Check if 7-Zip is already installed by looking for 7z.exe in the installation directory
+seven_zip_installed = os.path.exists(os.path.join(installDir, "7z.exe"))
+
+if seven_zip_installed:
+    print("7-Zip is already installed.")
+else:
+    # Echo a message to inform the user about the script's purpose
+    print("Authentication successful. Proceeding with installation...")
+
+    # Define the local directory to save the downloaded installer
+    localTempDir = os.path.expandvars(r"%APPDATA%\readycade\temp")
+
+    # Download the 7-Zip installer using curl and retain the original name
+    os.makedirs(localTempDir, exist_ok=True)
+    downloadPath = os.path.join(localTempDir, "7z_installer.exe")
+    with requests.get(downloadURL, stream=True) as response, open(downloadPath, 'wb') as outFile:
+        response.raise_for_status()
+        total_size = int(response.headers.get('content-length', 0))
+        block_size = 1024
+        with tqdm(total=total_size, unit='B', unit_scale=True, desc='Downloading 7-Zip') as pbar:
+            for data in response.iter_content(block_size):
+                pbar.update(len(data))
+                outFile.write(data)
+
+    # Run the 7-Zip installer and wait for it to complete
+    subprocess.run(["start", "/wait", "", downloadPath], shell=True)
+
+    # Check if the installation was successful
+    if not os.path.exists(os.path.join(installDir, "7z.exe")):
+        print("Installation failed.")
+        sys.exit()
+
+    # Additional code to run after the installation is complete
+    print("7-Zip is now installed.")
+
+def download_file(url, target_directory, status_var, progress_var, max_retries=5):
     local_filename = os.path.join(target_directory, os.path.basename(url))
     display_filename = os.path.basename(local_filename)
     block_size = 8192  # 8 Kibibytes
@@ -208,18 +312,9 @@ def extract_config_packs(selected_config_pack, target_directory, status_var):
         else:
             print(f"Source directory '{source_directory}' does not exist.")
 
-
-
         # Copy only the "share" folder to the network share
         status_var.set(f"Copying Files to Readycade... Please Wait...")
         print("Copying Files to Readycade... Please Wait...")
-        #source_directory = os.path.join(extraction_folder, config_file_name.replace(".7z", ""))
-        #source_directory = os.path.join(extraction_folder, config_file_name.replace("-media", "").replace(".7z", ""))
-        
-        #source_directory = os.path.join(extraction_folder, config_file_name.replace(".7z", ""))
-        #shutil.copytree(source_directory, target_directory_network, dirs_exist_ok=True)
-
-        #shutil.copytree(source_share_path, target_directory_network, dirs_exist_ok=True)
         
         status_message = f"{selected_config_pack} {config_file_name} folder copied to {target_directory_network}"
         status_var.set(status_message)
@@ -266,8 +361,6 @@ def cleanup_temp_files(target_directory, file_path):
         status_var.set("Error deleting temporary files.")
 
     root.after(2000, clear_status)
-
-
 
 
 def clear_status():
@@ -499,11 +592,12 @@ config_pack_names = {
     "x1": "x1-media.7z",
     "x68000": "x68000-media.7z",
     "zx81": "zx81-media.7z",
-    "zxspectrum": "zxspectrum-media.7z"
+    "zxspectrum images": "zxspectrum-images.7z",
+    "zxspectrum videos": "zxspectrum-videos.7z"
 }
 
 md5_checksums = {
-    "64dd-media.7z": "02633527841f5effa49552d15a75f06",
+    "64dd-media.7z": "702633527841f5effa49552d15a75f06",
     "amiga600-media.7z": "ec0ee2c4462d58dcef0270d59fb879e4",
     "amiga1200-media.7z": "0b21b5401db62c1e32cd61a230fd8555",
     "amstradcpc-media.7z": "17d98adf4e1ae1c2e95c0e3b19643d77",
@@ -582,7 +676,8 @@ md5_checksums = {
     "x1-media.7z": "9975f3b17dba0c642b84d0ef18b3515d",
     "x68000-media.7z": "6905d8cc5109cc4d131e30a0b746accf",
     "zx81-media.7z": "a79d7847f0bac3a5a8eab17791ed6610",
-    "zxspectrum-media.7z": "913a3ac9a8ee085709ebeaa7ebf02942" 
+    "zxspectrum-images.7z": "8d22052f490c6c44a6f3782a93405030",
+    "zxspectrum-videos.7z": "3139400f3dad389593ff35ca52df4edf"
 }
 
 # Config pack selection dropdown
