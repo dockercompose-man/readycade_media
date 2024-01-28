@@ -332,11 +332,10 @@ def extract_config_packs(selected_config_pack, target_directory, status_var):
     if subprocess.run(extraction_command).returncode == 0:
         # Define the source and target paths for the share folder
         
-        target_directory_network = r"F:\Readycade\TEMP\share\roms\{}".format(selected_config_pack)
-        #target_directory_network = r"\\RECALBOX\share\roms\{}".format(console_name)
+        #target_directory_network = r"F:\Readycade\TEMP\share\roms\{}".format(selected_config_pack)
+        target_directory_network = r"\\RECALBOX\share\roms\{}".format(selected_config_pack)
 
         source_share_path = os.path.join(extraction_folder, config_file_name)
-        #target_directory_network = r"\\RECALBOX\share\roms\{}".format(console_name)
 
         source_directory = os.path.join(extraction_folder, config_file_name.split('.')[0])
         source_directory = source_directory.replace("-media", "")  # Remove "-media" from the directory name
