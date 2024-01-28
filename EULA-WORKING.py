@@ -1,40 +1,45 @@
 import tkinter as tk
-from tkinter import messagebox
+from tkinter import Scrollbar, Text, messagebox
 from tkinter.filedialog import askopenfile
 from PIL import Image, ImageTk
 import pypdf
 
 def show_eula():
-    eula_text = """
-    End User License Agreement (EULA)
+    # Load EULA from EULA.txt
+    with open("EULA.txt", "r") as file:
+        eula_text = file.read()
 
-    This is a sample EULA text. Please replace it with your own EULA.
+    # Create a new window for displaying the EULA
+    eula_window = tk.Toplevel()
+    eula_window.title("End User License Agreement")
 
-    1. You agree to use this software responsibly.
-    2. You may not distribute or sell this software without permission.
-    3. This software is provided "as is" without any warranty.
+    # Add a Text widget for displaying the EULA text with a scroll bar
+    text_box = Text(eula_window, wrap=tk.WORD, height=24, width=70, padx=15, pady=15)
+    text_box.insert(tk.END, eula_text)
+    text_box.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")
 
-    Thank you for using Readycade!
-    """
-    return messagebox.askyesno("End User License Agreement", eula_text)
+    # Add a scrollbar
+    scrollbar = Scrollbar(eula_window, command=text_box.yview)
+    scrollbar.grid(row=0, column=1, sticky="nsew")
+    text_box['yscrollcommand'] = scrollbar.set
 
-def open_file():
-    browse_text.set("loading...")
-    file = askopenfile(parent=root, mode='rb', title="Choose a file", filetype=[("PDF files", "*.pdf")])
-    if file:
-        read_pdf = pypdf.PdfReader(file)
-        page = read_pdf._get_page(0)
-        page_content = page.extract_text()
-        print(page_content)
+    # Add "Agree" and "Disagree" buttons
+    def agree():
+        eula_window.destroy()
+        root.deiconify()
 
-        # Text Box
-        text_box = tk.Text(root, height=10, width=50, padx=15, pady=15)
-        text_box.insert(1.0, page_content)
-        text_box.tag_configure("center", justify="center")
-        text_box.tag_add("center", 1.0, "end")
-        text_box.grid(column=1, row=3)
+    agree_button = tk.Button(eula_window, text="Agree", command=agree)
+    agree_button.grid(row=1, column=0, padx=5, pady=5)
 
-        browse_text.set("Browse")
+    # Adjust the size of the EULA window
+    eula_window.geometry("640x480")
+
+    # Force the focus on the EULA window
+    eula_window.focus_force()
+
+    # Handle window closure
+    eula_window.protocol("WM_DELETE_WINDOW", agree)
+
 
 # Initialize Tkinter
 root = tk.Tk()
@@ -43,40 +48,35 @@ root = tk.Tk()
 root.withdraw()
 
 # Show EULA before creating the main window
-if show_eula():
-    # Continue with the main window creation
-    root.deiconify()
+show_eula()
 
-    # Set the window title
-    root.title("Readycade")
+# Set the window title
+root.title("Readycade")
 
-    # Remove the TK icon
-    root.iconbitmap(default="icon.ico")
+# Remove the TK icon
+root.iconbitmap(default="icon.ico")
 
-    # Logo
-    logo = Image.open('logo.png')
-    logo = ImageTk.PhotoImage(logo)
-    logo_label = tk.Label(image=logo)
-    logo_label.image = logo
-    logo_label.grid(column=1, row=0)
+# Logo
+logo = Image.open('logo.png')
+logo = ImageTk.PhotoImage(logo)
+logo_label = tk.Label(image=logo)
+logo_label.image = logo
+logo_label.grid(column=1, row=0)
 
-    # Instructions
-    Instructions = tk.Label(root, text="Select a PDF file on your computer to extract all its text", font="open-sans")
-    Instructions.grid(columnspan=3, column=0, row=1)
+# Instructions
+Instructions = tk.Label(root, text="Select a PDF file on your computer to extract all its text", font="open-sans")
+Instructions.grid(columnspan=3, column=0, row=1)
 
-    # Browse Button
-    browse_text = tk.StringVar()
-    browse_btn = tk.Button(root, textvariable=browse_text, command=lambda: open_file(), font="open-sans", bg="#ff6600", fg="white", height=2, width=15)
-    browse_text.set("Browse")
-    browse_btn.grid(column=1, row=2)
+# Browse Button
+browse_text = tk.StringVar()
+browse_btn = tk.Button(root, textvariable=browse_text, command=lambda: open_file(), font="open-sans", bg="#ff6600", fg="white", height=2, width=15)
+browse_text.set("Browse")
+browse_btn.grid(column=1, row=2)
 
-    canvas = tk.Canvas(root, width=600, height=250)
-    canvas.grid(columnspan=3)
+canvas = tk.Canvas(root, width=600, height=250)
+canvas.grid(columnspan=3)
 
-    # Remove the TK icon
-    root.iconbitmap(default="")
+# Remove the TK icon
+root.iconbitmap(default="")
 
-    root.mainloop()
-else:
-    # Exit the application if the user didn't accept the EULA
-    root.destroy()
+root.mainloop()
