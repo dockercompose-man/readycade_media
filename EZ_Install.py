@@ -332,8 +332,8 @@ def extract_config_packs(selected_config_pack, target_directory, status_var):
     if subprocess.run(extraction_command).returncode == 0:
         # Define the source and target paths for the share folder
         source_share_path = os.path.join(extraction_folder, "share")
-        target_directory_network = r"F:\Readycade\TEMP"
-        #target_directory_network = r"\\RECALBOX\share"
+        #target_directory_network = r"F:\Readycade\TEMP"
+        target_directory_network = r"\\RECALBOX\share"
 
         # Copy only the "share" folder to the network share
         status_var.set(f"Copying Files to Readycade... Please Wait...")
