@@ -21,7 +21,7 @@
 """
 
 import tkinter as tk
-from tkinter import ttk, messagebox, simpledialog
+from tkinter import ttk, messagebox, simpledialog, Scrollbar, Text
 from PIL import Image, ImageTk
 import os
 import requests
@@ -44,6 +44,43 @@ auth_url = "https://forum.readycade.com/auth.php"
 download_canceled = False
 
 global_password = "o2M8K2zjs67ysJR8jWy7"
+
+def show_eula():
+    # Load EULA from EULA.txt
+    with open("EULA.txt", "r") as file:
+        eula_text = file.read()
+
+    # Create a new window for displaying the EULA
+    eula_window = tk.Toplevel()
+    eula_window.title("End User License Agreement")
+
+    # Add a Text widget for displaying the EULA text with a scroll bar
+    text_box = Text(eula_window, wrap=tk.WORD, height=24, width=70, padx=15, pady=15)
+    text_box.insert(tk.END, eula_text)
+    text_box.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")
+
+    # Add a scrollbar
+    scrollbar = Scrollbar(eula_window, command=text_box.yview)
+    scrollbar.grid(row=0, column=1, sticky="nsew")
+    text_box['yscrollcommand'] = scrollbar.set
+
+    # Add "Agree" and "Disagree" buttons
+    def agree():
+        eula_window.destroy()
+        root.deiconify()
+
+    agree_button = tk.Button(eula_window, text="Agree", command=agree)
+    agree_button.grid(row=1, column=0, padx=5, pady=5)
+
+    # Adjust the size of the EULA window
+    eula_window.geometry("640x480")
+
+    # Force the focus on the EULA window
+    eula_window.focus_force()
+
+    # Handle window closure
+    eula_window.protocol("WM_DELETE_WINDOW", agree)
+
 
 def check_windows():
     if platform.system() != 'Windows':
@@ -474,6 +511,13 @@ def reset_download_button_delayed():
 
 
 root = tk.Tk()
+
+# Hide the main window initially
+root.withdraw()
+
+# Show EULA before creating the main window
+show_eula()
+
 root.title("Readycade™")
 
 # Remove the TK icon
