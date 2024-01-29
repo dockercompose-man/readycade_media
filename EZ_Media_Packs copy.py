@@ -51,6 +51,14 @@ script_dir = os.path.dirname(os.path.abspath(__file__))
 # Define the relative path to the EULA.txt file
 eula_path = os.path.join(script_dir, "EULA.txt")
 
+# Set up logging configuration
+log_file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "script_log.txt")
+logging.basicConfig(filename=log_file_path, level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+
+# Example log statements
+logging.info("Script started.")
+
+
 def resource_path(relative_path):
     """ Get absolute path to resource, works for dev and for PyInstaller """
     try:
@@ -63,7 +71,7 @@ def resource_path(relative_path):
 
 def show_eula():
     # Load EULA from EULA.txt
-    with open(eula_path, "r") as file:
+    with open("EULA.txt", "r") as file:
         eula_text = file.read()
 
     # Create a new window for displaying the EULA
@@ -173,8 +181,7 @@ else:
     print("Authentication successful. Proceeding with installation...")
 
     # Define the local directory to save the downloaded installer
-    #localTempDir = os.path.expandvars(r"%APPDATA%\readycade\temp")
-    localTempDir = os.path.join(os.environ["APPDATA"], "readycade", "temp")
+    localTempDir = os.path.expandvars(r"%APPDATA%\readycade\temp")
 
     # Download the 7-Zip installer using curl and retain the original name
     os.makedirs(localTempDir, exist_ok=True)
@@ -344,6 +351,7 @@ def extract_config_packs(selected_config_pack, target_directory, status_var):
     #extraction_command = [r'C:\Program Files\7-Zip\7z.exe', 'x', '-aoa', '-o{}'.format(os.path.join(extraction_folder, config_file_name.split('.')[0])), '-p{}'.format(global_password), os.path.join(target_directory, config_file_name), '-r']
     extraction_command = [r'C:\Program Files\7-Zip\7z.exe', 'x', '-aoa', '-o{}'.format(os.path.join(extraction_folder, config_file_name.split('.')[0].replace('-media', ''))), '-p{}'.format(global_password), os.path.join(target_directory, config_file_name), '-r']
 
+
     # Check if the extraction is successful
     if subprocess.run(extraction_command).returncode == 0:
         # Define the source and target paths for the share folder
@@ -368,7 +376,6 @@ def extract_config_packs(selected_config_pack, target_directory, status_var):
         print("Copying Files to Readycade... Please Wait...")
         
         status_message = f"{selected_config_pack} {config_file_name} folder copied to {target_directory_network}"
-        status_message = f"{selected_config_pack} files are being copied to {target_directory_network}"
         status_var.set(status_message)
         time.sleep(2)  # Sleep for 2 seconds
 
@@ -439,8 +446,7 @@ def download_thread():
     selected_config_pack = config_pack_combobox.get()
 
     if selected_config_pack:
-        #target_directory = os.path.expandvars(r"%APPDATA%\readycade\mediapacks")
-        target_directory = os.path.join(os.environ["APPDATA"], "readycade", "mediapacks")
+        target_directory = os.path.expandvars(r"%APPDATA%\readycade\mediapacks")
         config_file_name = config_pack_names[selected_config_pack]
 
         # Ensure the target directory exists
@@ -519,8 +525,7 @@ def cancel_download():
 
     # Clean up downloaded files and folders
     selected_config_pack = config_pack_combobox.get()
-    #target_directory = os.path.expandvars(r"%APPDATA%\readycade\mediapacks")
-    target_directory = os.path.join(os.environ["APPDATA"], "readycade", "mediapacks")
+    target_directory = os.path.expandvars(r"%APPDATA%\readycade\mediapacks")
     file_path = os.path.join(target_directory, config_pack_names[selected_config_pack])
 
     # Attempt to delete the downloaded file
@@ -554,7 +559,7 @@ show_eula()
 root.title("Readycade™")
 
 # Remove the TK icon
-#root.iconbitmap(default="icon.ico")
+root.iconbitmap(default="icon.ico")
 
 # Set the window icon
 icon_path = os.path.join(os.path.dirname(__file__), 'icon.ico')  # Replace 'icon.ico' with your actual icon file
