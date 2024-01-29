@@ -28,7 +28,6 @@ import requests
 from requests.exceptions import RequestException
 import hashlib
 from http.client import IncompleteRead
-import logging
 import platform
 import subprocess
 import shutil
@@ -46,33 +45,9 @@ download_canceled = False
 
 global_password = "o2M8K2zjs67ysJR8jWy7"
 
-# Get the script's directory
-script_dir = os.path.dirname(os.path.abspath(__file__))
-
-# Define the relative path to the EULA.txt file
-eula_path = os.path.join(script_dir, "EULA.txt")
-
-# Set up logging configuration
-log_file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "script_log.txt")
-logging.basicConfig(filename=log_file_path, level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
-
-# Example log statements
-logging.info("Script started.")
-
-
-def resource_path(relative_path):
-    """ Get absolute path to resource, works for dev and for PyInstaller """
-    try:
-        # PyInstaller creates a temp folder and stores path in _MEIPASS
-        base_path = sys._MEIPASS
-    except Exception:
-        base_path = os.path.abspath(".")
- 
-    return os.path.join(base_path, relative_path)
-
 def show_eula():
     # Load EULA from EULA.txt
-    with open(eula_path, "r") as file:
+    with open("EULA.txt", "r") as file:
         eula_text = file.read()
 
     # Create a new window for displaying the EULA
@@ -166,8 +141,6 @@ print("Authentication successful. Proceeding with installation...")
 
 # Define the installation directory for 7-Zip
 installDir = "C:\\Program Files\\7-Zip"
-# Define the relative path to the installation directory for 7-Zip
-#installDir = os.path.join(script_dir, "7-Zip")
 
 # Define the 7-Zip version you want to download
 version = "2301"
@@ -185,11 +158,8 @@ else:
     print("Authentication successful. Proceeding with installation...")
 
     # Define the local directory to save the downloaded installer
-    #localTempDir = os.path.expandvars(r"%APPDATA%\readycade\temp")
+    localTempDir = os.path.expandvars(r"%APPDATA%\readycade\temp")
 
-    # Define the relative path to the localTempDir
-    localTempDir = os.path.join(os.environ["APPDATA"], "readycade", "temp")
- 
     # Download the 7-Zip installer using curl and retain the original name
     os.makedirs(localTempDir, exist_ok=True)
     downloadPath = os.path.join(localTempDir, "7z_installer.exe")
@@ -355,18 +325,8 @@ def extract_config_packs(selected_config_pack, target_directory, status_var):
     # Specify the target folder for extraction
     extraction_folder = target_directory
 
-    status_var.set(f"Extracting Files... Please Wait...")
-    print("Extracting Files... Please Wait...")
-    
     # Proceed with the extraction directly to the target directory
-    #extraction_command = [r'C:\Program Files\7-Zip\7z.exe', 'x', '-aoa', '-o{}'.format(extraction_folder), '-p{}'.format(global_password), os.path.join(target_directory, config_file_name)]
     extraction_command = [r'C:\Program Files\7-Zip\7z.exe', 'x', '-aoa', '-o{}'.format(extraction_folder), '-p{}'.format(global_password), os.path.join(target_directory, config_file_name)]
-
-    with open(log_file_path, 'a') as log_file:
-        log_file.write("Extraction starting...\n")
-        subprocess.run(extraction_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        log_file.write("Extraction completed.\n")
-
 
     # Check if the extraction is successful
     if subprocess.run(extraction_command).returncode == 0:
@@ -387,7 +347,7 @@ def extract_config_packs(selected_config_pack, target_directory, status_var):
         
         # Display a message box for successful installation
         root.after(1000, clear_and_reset_status, "Config Pack Installed! Please Select Another or Exit the application.")
-        print("Config Pack Installed! Reboot Your Readycade Now.")
+        print("Config Pack Installed! Please Select Another or Exit the application.")
 
         # Call cleanup_temp_files only after the successful copy
         root.after(2000, cleanup_temp_files, target_directory, os.path.join(target_directory, config_file_name))
@@ -448,8 +408,7 @@ def download_thread():
     selected_config_pack = config_pack_combobox.get()
 
     if selected_config_pack:
-        #target_directory = os.path.expandvars(r"%APPDATA%\readycade\configpacks")
-        target_directory = os.path.join(os.environ["APPDATA"], "readycade", "configpacks")
+        target_directory = os.path.expandvars(r"%APPDATA%\readycade\configpacks")
         config_file_name = config_pack_names[selected_config_pack]
 
         # Ensure the target directory exists
@@ -528,8 +487,7 @@ def cancel_download():
 
     # Clean up downloaded files and folders
     selected_config_pack = config_pack_combobox.get()
-    #target_directory = os.path.expandvars(r"%APPDATA%\readycade\configpacks")
-    target_directory = os.path.join(os.environ["APPDATA"], "readycade", "configpacks")
+    target_directory = os.path.expandvars(r"%APPDATA%\readycade\configpacks")
     file_path = os.path.join(target_directory, config_pack_names[selected_config_pack])
 
     # Attempt to delete the downloaded file
@@ -563,7 +521,7 @@ show_eula()
 root.title("Readycade™")
 
 # Remove the TK icon
-#root.iconbitmap(default="icon.ico")
+root.iconbitmap(default="icon.ico")
 
 # Set the window icon
 icon_path = os.path.join(os.path.dirname(__file__), 'icon.ico')  # Replace 'icon.ico' with your actual icon file
@@ -622,7 +580,5 @@ status_label.grid(columnspan=3, column=0, row=5)
 cancel_btn = tk.Button(root, text="Cancel", command=cancel_download, font="open-sans", bg="#ff0000", fg="white", height=2, width=15, state='disabled')
 cancel_btn.grid(column=1, row=6)
 
-# Example log statement
-logging.info("Script completed.")
-
 root.mainloop()
+
