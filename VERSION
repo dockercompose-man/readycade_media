@@ -15,11 +15,11 @@ VSVersionInfo(
     StringTable(
         u'040904B0',
         [StringStruct(u'CompanyName', u'Readycade Incorporated'),
-        StringStruct(u'FileDescription', u'EZ_Installer'),
+        StringStruct(u'FileDescription', u'EZ_Media_Packs'),
         StringStruct(u'FileVersion', u'1.0.0.0    (win10-22H2-19045.3930)'),
-        StringStruct(u'InternalName', u'EZ_Install'),
+        StringStruct(u'InternalName', u'EZ_Media_Packs'),
         StringStruct(u'LegalCopyright', u'Readycade Incorporated. All rights reserved.'),
-        StringStruct(u'OriginalFilename', u'EZ_Install.Exe'),
+        StringStruct(u'OriginalFilename', u'EZ_Media_Packs.Exe'),
         StringStruct(u'ProductName', u'Readycade'),
         StringStruct(u'ProductVersion', u'1, 0, 0, 0')])
     ]), 
