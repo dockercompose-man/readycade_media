@@ -17,5 +17,5 @@ Select ONE Console or System's Media Pack and press Download. Let Readycade_EZ_M
 Don't forget to update your gameslist afterwards!
 
 ### Screenshot of Readycade Configuration Installer
-![Readycade Configuration Installer](https://github.com/readycade/readycade_configs/blob/master/readycade_mediapacks.PNG)
+![Readycade Configuration Installer](https://github.com/readycade/readycade_media/blob/master/readycade_mediapacks.PNG)
 
