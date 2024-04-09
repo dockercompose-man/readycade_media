@@ -15,3 +15,7 @@ Users must authenticate with Readycade servers to use this Application.
 Select ONE Console or System's Media Pack and press Download. Let Readycade_EZ_Media_Packs.exe do all the work!
 
 Don't forget to update your gameslist afterwards!
+
+### Screenshot of Readycade Configuration Installer
+![Readycade Configuration Installer](https://github.com/readycade/readycade_configs/blob/master/readycade_mediapacks.PNG)
+
