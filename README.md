@@ -8,6 +8,8 @@ Packs for over 80 Consoles/Systems!
 
 Scraped from our friends at Screenscraper.fr
 
+### Windows 10/11, Linux and MacOS Supported
+
 ## Click the Picture below to Watch the EZ Media Packs Installation Tutorial
 [![EZ Media Packs](EZ_Media_Pack.jpg)](https://www.youtube.com/watch?v=alRtrSygBp0)
 
