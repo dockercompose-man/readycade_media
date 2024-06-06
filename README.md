@@ -8,12 +8,13 @@ Packs for over 80 Consoles/Systems!
 
 Scraped from our friends at Screenscraper.fr
 
-### Windows 10/11, Linux and MacOS Supported
-
 ## Click the Picture below to Watch the EZ Media Packs Installation Tutorial
-[![EZ Media Packs](EZ_Media_Pack.jpg)](https://www.youtube.com/watch?v=alRtrSygBp0)
+[![EZ Media Packs](EZ_Media_Pack.jpg)](https://www.youtube.com/watch?v=svrX4Ce3CFw)
 
 ## Installation
+
+### Windows 10/11, Linux and MacOS Supported
+
 Select ONE Console or System's Media Pack and press Download. Let Readycade_EZ_Media_Packs.exe do all the work!
 
 Don't forget to update your gameslist afterwards!
