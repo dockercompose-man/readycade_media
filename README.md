@@ -21,4 +21,3 @@ Users must authenticate with Readycade servers to use this Application.
 
 ### Screenshot of Readycade EZ Media Packs Installer
 ![Readycade Configuration Installer](https://github.com/readycade/readycade_media/blob/master/readycade_mediapacks.PNG)
-
