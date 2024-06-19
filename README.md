@@ -4,7 +4,7 @@ Why wait hours or even DAYS to scrape your Arcade's Media?
 
 Get your Consoles and Systems up and running in minutes with Ready Media Packs!
 
-Packs for over 80 Consoles/Systems!
+Packs for over 90 Consoles/Systems!
 
 Scraped from our friends at Screenscraper.fr
 
