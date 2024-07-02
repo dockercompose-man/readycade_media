@@ -9,7 +9,7 @@ Packs for over 90 Consoles/Systems!
 Scraped from our friends at Screenscraper.fr
 
 ## Click the Picture below to Watch the ReadyMediaPacks Installation Tutorial
-[![EZ Media Packs](EZ_Media_Pack.jpg)](https://readycade.com/2023/11/02/readycade-media-pack-installer-1-0-tutorial/)
+[![EZ Media Packs](EZ_Media_Pack.jpg)](https://www.youtube.com/watch?v=IkkaR4BscXo)
 
 ## Installation
 
